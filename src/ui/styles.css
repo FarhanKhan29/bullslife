@@ -970,26 +970,26 @@ select {
 }
 .stamps {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
 }
 .stamp {
   background: #fff8ec;
   color: var(--ink);
   border-radius: 16px;
-  padding: 12px 8px;
+  padding: 10px 8px;
   text-align: center;
   position: relative;
-  min-height: 150px;
+  min-height: 130px;
 }
 .stamp .seal {
-  width: 74px;
-  height: 74px;
+  width: 58px;
+  height: 58px;
   margin: 0 auto 8px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 34px;
+  font-size: 26px;
   border: 4px dashed #c8bfae;
   color: #c8bfae;
   filter: grayscale(1);
@@ -1195,5 +1195,37 @@ body.photo-mode #ui {
     height: 56px;
     margin: 0;
     font-size: 26px;
+  }
+}
+
+/* ---------- minimap ---------- */
+.minimap {
+  position: fixed;
+  right: 14px;
+  top: 128px;
+  padding: 6px;
+  border-radius: 16px;
+  background: rgba(14, 29, 51, 0.82);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+.minimap canvas {
+  display: block;
+  width: 220px;
+  height: 120px;
+  border-radius: 10px;
+}
+.minimap.big canvas {
+  width: min(560px, 80vw);
+  height: min(305px, 44vw);
+}
+@media (max-width: 640px) {
+  .minimap {
+    top: auto;
+    bottom: 64px;
+  }
+  .minimap canvas {
+    width: 150px;
+    height: 82px;
   }
 }

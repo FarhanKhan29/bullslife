@@ -1,5 +1,5 @@
 /** In-game HUD: location, online counter, panel buttons, prompts, emotes, hints. */
-import { stampCount } from '../activities/passport';
+import { stampCount, STAMP_TOTAL } from '../activities/passport';
 import { ONLINE_ENABLED } from '../core/config';
 import { bus, getNet, session } from '../core/session';
 import { getSettings, settingsEvents, updateSettings } from '../core/settings';
@@ -7,7 +7,8 @@ import { EMOTES } from '../game/Avatar';
 import type { NetStatus } from '../net/types';
 import { createChat } from './chat';
 import { h, toast, uiRoot } from './dom';
-import { openInfo, openPassport } from './panels';
+import { askText, openInfo, openPassport } from './panels';
+import { createMinimap } from './minimap';
 
 export function createHud(actions: { friends: () => void; character: () => void; settings: () => void; leave: () => void }) {
   const net = getNet();
@@ -17,7 +18,7 @@ export function createHud(actions: { friends: () => void; character: () => void;
   const loc = h('div', { class: 'hud-card' }, locName, h('div', { class: 'loc-sub' }, statusPill, roomLabel));
 
   const count = h('span', { class: 'count', text: '1' });
-  const stampBadge = h('span', { class: 'badge', text: `${stampCount()}/3` });
+  const stampBadge = h('span', { class: 'badge', text: `${stampCount()}/${STAMP_TOTAL}` });
   const btn = (emoji: string, label: string, onclick: () => void, extra?: Node, cls = '') =>
     h('button', { class: 'hud-btn ' + cls, onclick, title: label, 'aria-label': label }, h('span', { class: 'emoji', text: emoji }), h('span', { class: 'label', text: label }), extra ?? null);
 
@@ -46,16 +47,17 @@ export function createHud(actions: { friends: () => void; character: () => void;
     'div',
     { class: 'hud-card controls-guide' },
     h('h4', {}, 'How to play', h('button', { 'aria-label': 'Hide hints', onclick: () => updateSettings({ showHints: false }), text: '×' })),
-    h('div', {}, h('span', { class: 'k', text: 'WASD' }), ' walk around'),
-    h('div', {}, h('span', { class: 'k', text: 'E' }), ' interact / collect stamps'),
-    h('div', {}, h('span', { class: 'k', text: 'Enter' }), ' chat  ', h('span', { class: 'k', text: '1-5' }), ' emotes'),
-    h('div', { style: 'opacity:.8' }, '🎯 Collect 3 passport stamps, then team up at the switches by Davis Hall!'),
+    h('div', {}, h('span', { class: 'k', text: 'WASD' }), ' walk  ', h('span', { class: 'k', text: 'Shift' }), ' run'),
+    h('div', {}, h('span', { class: 'k', text: 'E' }), ' sit, eat, use things, enter'),
+    h('div', {}, h('span', { class: 'k', text: 'Enter' }), ' chat  ', h('span', { class: 'k', text: '1-5' }), ' emotes  ', h('span', { class: 'k', text: 'M' }), ' map'),
+    h('div', { style: 'opacity:.8' }, `🎯 Every building is open — collect all ${STAMP_TOTAL} passport stamps!`),
   );
   const syncGuide = () => (guide.style.display = getSettings().showHints ? '' : 'none');
   syncGuide();
 
   const chat = createChat();
-  const root = h('div', { class: 'hud' }, top, guide, prompt, emotes, chat.el);
+  const minimap = createMinimap();
+  const root = h('div', { class: 'hud' }, top, minimap.el, guide, prompt, emotes, chat.el);
   uiRoot().append(root);
 
   const setStatus = (s: NetStatus) => {
@@ -93,16 +95,18 @@ export function createHud(actions: { friends: () => void; character: () => void;
     bus.on('location', (_m, name) => (locName.textContent = name)),
     bus.on('toast', (t, k) => toast(t, k)),
     bus.on('info', (t) => openInfo(t)),
+    bus.on('askText', (title, initial, done) => askText(title, initial, done)),
     bus.on('openPanel', (p) => p === 'passport' && setTimeout(openPassport, 700)),
     settingsEvents.on('change', syncGuide),
   ];
-  const refreshStamps = setInterval(() => (stampBadge.textContent = `${stampCount()}/3`), 1000);
+  const refreshStamps = setInterval(() => (stampBadge.textContent = `${stampCount()}/${STAMP_TOTAL}`), 1000);
 
   return {
     destroy() {
       offs.forEach((o) => o());
       clearInterval(refreshStamps);
       chat.destroy();
+      minimap.destroy();
       root.remove();
     },
   };

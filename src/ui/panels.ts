@@ -1,5 +1,5 @@
 /** Friends, Settings, Passport, Report and Info panels. */
-import { getStamps, stampCount, STAMPS } from '../activities/passport';
+import { getStamps, stampCount, STAMPS, STAMP_TOTAL } from '../activities/passport';
 import { drawPreview } from '../character/avatarRenderer';
 import { play } from '../core/audio';
 import { DEFAULT_ROOM, ONLINE_ENABLED } from '../core/config';
@@ -179,7 +179,9 @@ export function openSettings() {
         'div',
         { class: 'keys' },
         h('span', {}, h('kbd', { text: 'W' }), ' ', h('kbd', { text: 'A' }), ' ', h('kbd', { text: 'S' }), ' ', h('kbd', { text: 'D' })), 'Walk (or arrow keys / drag on touch screens)',
-        h('span', {}, h('kbd', { text: 'E' })), 'Interact, enter, collect stamps',
+        h('span', {}, h('kbd', { text: 'E' })), 'Interact: sit, lie down, eat, use objects, collect stamps',
+        h('span', {}, h('kbd', { text: 'Shift' })), 'Run',
+        h('span', {}, h('kbd', { text: 'M' })), 'Toggle the minimap',
         h('span', {}, h('kbd', { text: 'Enter' })), 'Open chat / send message',
         h('span', {}, h('kbd', { text: '1' }), '–', h('kbd', { text: '5' })), 'Emotes: 👋 🎉 ❤️ ❓ ⭐',
         h('span', {}, h('kbd', { text: 'Esc' })), 'Close windows / leave chat',
@@ -201,8 +203,8 @@ export function openPassport() {
       'div',
       { class: 'passport' },
       h('h3', { text: 'UB North Campus Passport' }),
-      h('div', { style: 'font-weight:800;opacity:.85', text: `${session.appearance.name} · ${n}/3 stamps` }),
-      h('div', { class: 'progress' }, h('i', { style: `width:${(n / 3) * 100}%` })),
+      h('div', { style: 'font-weight:800;opacity:.85', text: `${session.appearance.name} · ${n}/${STAMP_TOTAL} stamps — visit every building!` }),
+      h('div', { class: 'progress' }, h('i', { style: `width:${(n / STAMP_TOTAL) * 100}%` })),
       h(
         'div',
         { class: 'stamps' },
@@ -215,9 +217,34 @@ export function openPassport() {
           ),
         ),
       ),
-      n === 3 ? h('div', { style: 'margin-top:14px;font-weight:800;text-align:center', text: '🏆 Campus Explorer! You visited every landmark.' }) : null,
+      n === STAMP_TOTAL ? h('div', { style: 'margin-top:14px;font-weight:800;text-align:center', text: '🏆 Campus Explorer! You visited every building on North Campus.' }) : null,
     ),
   });
+}
+
+/** Small text prompt (used for whiteboards). Calls done(null) on cancel. */
+export function askText(title: string, initial: string, done: (text: string | null) => void) {
+  const input = h('input', { class: 'field', maxlength: 140, value: initial, placeholder: 'Max 140 characters' }) as HTMLInputElement;
+  let sent = false;
+  const submit = () => {
+    sent = true;
+    closeModal();
+    done(input.value.trim());
+  };
+  input.addEventListener('keydown', (e) => e.key === 'Enter' && submit());
+  openModal({
+    title,
+    icon: '🖊️',
+    body: h('div', {}, input, h('div', { class: 'muted', style: 'margin-top:8px', text: 'Everyone in this room can see the board. Be kind!' })),
+    foot: h('button', { class: 'btn gold', onclick: submit, text: 'Write' }),
+    onClose: () => !sent && done(null),
+  });
+  // the E key that opened this box must not end up typed into it
+  setTimeout(() => {
+    input.value = initial;
+    input.focus();
+    input.select();
+  }, 150);
 }
 
 export function openInfo(text: string) {

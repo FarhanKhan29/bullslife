@@ -8,6 +8,10 @@ import { appearanceKey, type Appearance } from '../character/appearance';
 import { FRAME_H, FRAME_W, renderSpriteSheet, FACINGS, WALK_FRAMES, type Facing } from '../character/avatarRenderer';
 import { CHAT } from '../core/config';
 import { isoToScreen } from './iso';
+import { ITEMS } from './items';
+import type { ItemId } from './maps/types';
+
+export type Pose = 'stand' | 'sit' | 'lie';
 
 const SHEET_SCALE = 3;
 const DISPLAY_SCALE = 1.3 / SHEET_SCALE;
@@ -28,7 +32,7 @@ export function ensureAvatarTexture(scene: Phaser.Scene, a: Appearance): string 
   const fw = FRAME_W * SHEET_SCALE;
   const fh = FRAME_H * SHEET_SCALE;
   FACINGS.forEach((facing, row) => {
-    for (let f = 0; f <= WALK_FRAMES; f++) tex.add(`${facing}_${f}`, 0, f * fw, row * fh, fw, fh);
+    for (let f = 0; f <= WALK_FRAMES + 1; f++) tex.add(`${facing}_${f}`, 0, f * fw, row * fh, fw, fh);
   });
   return key;
 }
@@ -47,6 +51,10 @@ export class Avatar extends Phaser.GameObjects.Container {
   private texKey: string;
   private animTime = Math.random() * 1000;
   private ring: Phaser.GameObjects.Ellipse | null = null;
+  pose: Pose = 'stand';
+  item: ItemId | null = null;
+  private itemText: Phaser.GameObjects.Text | null = null;
+  private zzzTimer = 0;
 
   constructor(scene: Phaser.Scene, gx: number, gy: number, look: Appearance, isLocal: boolean) {
     super(scene, 0, 0);
@@ -94,13 +102,61 @@ export class Avatar extends Phaser.GameObjects.Container {
     this.setPosition(p.x, p.y);
   }
 
-  /** Advance walk animation. */
+  /** Advance walk animation and pose. */
   tick(dtMs: number) {
     this.animTime += dtMs;
-    const frame = this.moving ? 1 + (Math.floor(this.animTime / 130) % WALK_FRAMES) : 0;
-    this.sprite.setFrame(`${this.facing}_${frame}`);
-    this.sprite.setFlipX(this.facing === 'side' && this.flip);
-    if (this.ring) this.ring.setAlpha(0.55 + Math.sin(this.animTime / 300) * 0.25);
+    if (this.pose === 'lie') {
+      // lying on a bed: rotate the idle sprite and puff out a few Zzz
+      this.sprite.setFrame('front_0').setFlipX(false).setAngle(-78).setPosition(-4, -14);
+      this.nameTag.setY(-44);
+      this.zzzTimer -= dtMs;
+      if (this.zzzTimer <= 0) {
+        this.zzzTimer = 1400;
+        const z = this.scene.add.text(-6, -30, 'z', { fontFamily: 'Fredoka, sans-serif', fontSize: '14px', color: '#ffffff', stroke: '#1b2433', strokeThickness: 3 }).setResolution(2);
+        this.add(z);
+        this.scene.tweens.add({ targets: z, x: 10, y: -64, alpha: 0, scale: 1.6, duration: 1600, onComplete: () => z.destroy() });
+      }
+    } else {
+      const sitting = this.pose === 'sit';
+      const frame = sitting ? WALK_FRAMES + 1 : this.moving ? 1 + (Math.floor(this.animTime / 130) % WALK_FRAMES) : 0;
+      this.sprite.setFrame(`${this.facing}_${frame}`).setAngle(0).setPosition(0, sitting ? -9 : 0);
+      this.sprite.setFlipX(this.facing === 'side' && this.flip);
+      this.nameTag.setY(sitting ? -72 : -66);
+    }
+    if (this.ring) this.ring.setAlpha(this.pose === 'stand' ? 0.55 + Math.sin(this.animTime / 300) * 0.25 : 0);
+    if (this.itemText) {
+      const side = this.facing === 'side' ? (this.flip ? -12 : 12) : this.facing === 'back' ? -12 : 13;
+      this.itemText.setPosition(side, this.pose === 'sit' ? -30 : -24).setVisible(this.pose !== 'lie' && this.facing !== 'back');
+    }
+  }
+
+  setPose(p: Pose) {
+    this.pose = p;
+  }
+
+  setItem(item: ItemId | null) {
+    if (item === this.item) return;
+    this.item = item;
+    this.itemText?.destroy();
+    this.itemText = null;
+    if (item) {
+      this.itemText = this.scene.add
+        .text(12, -24, ITEMS[item], { fontSize: '16px', fontFamily: 'system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif' })
+        .setOrigin(0.5, 1)
+        .setResolution(2);
+      this.add(this.itemText);
+      this.scene.tweens.add({ targets: this.itemText, scale: { from: 0.2, to: 1 }, duration: 220, ease: 'Back.Out' });
+    }
+  }
+
+  /** Floating effect text (♪, +1, 💥…) above the avatar. */
+  floatText(text: string, color = '#ffffff') {
+    const t = this.scene.add
+      .text((Math.random() - 0.5) * 20, -70, text, { fontFamily: 'Fredoka, system-ui, "Apple Color Emoji", sans-serif', fontSize: '18px', color, stroke: '#1b2433', strokeThickness: 3 })
+      .setOrigin(0.5)
+      .setResolution(2);
+    this.add(t);
+    this.scene.tweens.add({ targets: t, y: -110, alpha: 0, duration: 1100, onComplete: () => t.destroy() });
   }
 
   showBubble(text: string) {

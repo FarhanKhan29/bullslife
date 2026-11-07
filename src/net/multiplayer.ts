@@ -10,7 +10,10 @@ import type { Facing } from '../character/avatarRenderer';
 import { NET, ONLINE_ENABLED } from '../core/config';
 import { Emitter } from '../core/emitter';
 import { randomId } from '../core/storage';
-import type { MapId } from '../game/maps/types';
+import type { ItemId, MapId } from '../game/maps/types';
+import { isMapId } from '../game/maps/registry';
+import { ITEM_IDS } from '../game/items';
+import type { Pose } from '../game/Avatar';
 import { IncomingFloodGuard, sanitizeMessage } from '../social/chatSafety';
 import { LocalTransport } from './localTransport';
 import { SupabaseTransport } from './supabaseTransport';
@@ -29,7 +32,14 @@ export interface RemotePlayer {
   hasPosition: boolean;
   lastSeq: number;
   lastHeard: number;
+  pose: Pose;
+  item: ItemId | null;
 }
+
+/** Shared one-off effects other players should see (basketball shot, piano…). */
+export const FX_KINDS = ['hoop', 'kick', 'piano', 'drums', 'shake', 'pingpong'] as const;
+export type FxKind = (typeof FX_KINDS)[number];
+const POSES: Pose[] = ['stand', 'sit', 'lie'];
 
 export interface ChatMessage {
   id: string;
@@ -40,7 +50,6 @@ export interface ChatMessage {
 }
 
 const FACINGS: Facing[] = ['front', 'back', 'side'];
-const MAPS: MapId[] = ['campus', 'union'];
 
 /** Validate a movement packet. Exported for tests. */
 export function parseMove(p: Record<string, unknown>): MovePacket | null {
@@ -56,9 +65,11 @@ export function parseMove(p: Record<string, unknown>): MovePacket | null {
     Math.abs(p.x) < 500 &&
     Math.abs(p.y) < 500 &&
     FACINGS.includes(p.f as Facing) &&
-    MAPS.includes(p.map as MapId);
+    isMapId(p.map);
   if (!ok) return null;
-  return { id: p.id as string, seq: p.seq as number, x: p.x as number, y: p.y as number, f: p.f as Facing, fl: !!p.fl, m: !!p.m, map: p.map as MapId };
+  const pose = typeof p.p === 'number' && p.p >= 0 && p.p <= 2 ? Math.floor(p.p) : 0;
+  const it = typeof p.it === 'number' && p.it >= 0 && p.it < ITEM_IDS.length ? Math.floor(p.it) : -1;
+  return { id: p.id as string, seq: p.seq as number, x: p.x as number, y: p.y as number, f: p.f as Facing, fl: !!p.fl, m: !!p.m, map: p.map as MapId, p: pose, it };
 }
 
 export function parseMeta(raw: unknown): PlayerMeta | null {
@@ -68,7 +79,7 @@ export function parseMeta(raw: unknown): PlayerMeta | null {
   return {
     id: r.id,
     look: sanitizeAppearance(r.look),
-    map: MAPS.includes(r.map as MapId) ? (r.map as MapId) : 'campus',
+    map: isMapId(r.map) ? r.map : 'campus',
     plate: r.plate === 'A' || r.plate === 'B' ? r.plate : null,
     joinedAt: typeof r.joinedAt === 'number' ? r.joinedAt : 0,
   };
@@ -80,6 +91,8 @@ type Events = {
   emote: (id: string, emote: number) => void;
   status: (s: NetStatus) => void;
   coop: (until: number) => void;
+  fx: (id: string, kind: FxKind, ok: boolean, x: number, y: number) => void;
+  board: (map: MapId, board: string, text: string) => void;
   joined: (name: string) => void;
   left: (name: string) => void;
 };
@@ -97,6 +110,8 @@ export class Multiplayer extends Emitter<Events> {
   private lastMove: MovePacket | null = null;
   private lastHelloReply = 0;
   coopUntil = 0;
+  /** Whiteboard texts by `map|board`. */
+  readonly boards = new Map<string, string>();
 
   constructor(meta: PlayerMeta) {
     super();
@@ -156,8 +171,8 @@ export class Multiplayer extends Emitter<Events> {
     this.transport?.updateMeta(next);
   }
 
-  sendMove(x: number, y: number, f: Facing, fl: boolean, m: boolean, map: MapId) {
-    const pkt: MovePacket = { id: this.meta.id, seq: ++this.seq, x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, f, fl, m, map };
+  sendMove(x: number, y: number, f: Facing, fl: boolean, m: boolean, map: MapId, pose: Pose = 'stand', item: ItemId | null = null) {
+    const pkt: MovePacket = { id: this.meta.id, seq: ++this.seq, x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, f, fl, m, map, p: POSES.indexOf(pose), it: item ? ITEM_IDS.indexOf(item) : -1 };
     this.lastMove = pkt;
     this.transport?.send('move', pkt as unknown as Record<string, unknown>);
   }
@@ -171,6 +186,15 @@ export class Multiplayer extends Emitter<Events> {
 
   sendEmote(e: number) {
     this.transport?.send('emote', { id: this.meta.id, e });
+  }
+
+  sendFx(kind: FxKind, ok: boolean, x: number, y: number) {
+    this.transport?.send('fx', { id: this.meta.id, k: FX_KINDS.indexOf(kind), ok, x, y });
+  }
+
+  setBoard(map: MapId, board: string, text: string) {
+    this.boards.set(map + '|' + board, text);
+    this.transport?.send('board', { id: this.meta.id, map, b: board, text });
   }
 
   announceCoop(until: number) {
@@ -218,6 +242,8 @@ export class Multiplayer extends Emitter<Events> {
           hasPosition: false,
           lastSeq: -1,
           lastHeard: now,
+          pose: 'stand',
+          item: null,
         });
         this.emit('joined', meta.look.name);
       }
@@ -240,7 +266,7 @@ export class Multiplayer extends Emitter<Events> {
       let p = this.players.get(m.id);
       if (!p) {
         // movement can arrive before presence; keep it hidden until we know who it is
-        p = { id: m.id, meta: null, inPresence: false, x: m.x, y: m.y, facing: m.f, flip: m.fl, moving: m.m, map: m.map, hasPosition: true, lastSeq: m.seq, lastHeard: now };
+        p = { id: m.id, meta: null, inPresence: false, x: m.x, y: m.y, facing: m.f, flip: m.fl, moving: m.m, map: m.map, hasPosition: true, lastSeq: m.seq, lastHeard: now, pose: POSES[m.p ?? 0], item: m.it !== undefined && m.it >= 0 ? ITEM_IDS[m.it] : null };
         this.players.set(m.id, p);
         return;
       }
@@ -254,6 +280,8 @@ export class Multiplayer extends Emitter<Events> {
       p.flip = m.fl;
       p.moving = m.m;
       p.map = m.map;
+      p.pose = POSES[m.p ?? 0];
+      p.item = m.it !== undefined && m.it >= 0 ? ITEM_IDS[m.it] : null;
       p.hasPosition = true;
       p.lastHeard = now;
     } else if (ev === 'chat') {
@@ -280,7 +308,31 @@ export class Multiplayer extends Emitter<Events> {
         this.lastHelloReply = now;
         this.transport?.send('move', { ...this.lastMove, seq: ++this.seq });
         if (this.coopUntil > now) this.transport?.send('coop', { id: this.meta.id, until: this.coopUntil });
+        let n = 0;
+        for (const [key, text] of this.boards) {
+          if (n++ > 12) break;
+          const [map, b] = key.split('|');
+          this.transport?.send('board', { id: this.meta.id, map, b, text });
+        }
       }
+    } else if (ev === 'fx') {
+      const id = payload.id;
+      const k = payload.k;
+      const x = payload.x;
+      const y = payload.y;
+      if (typeof id !== 'string' || !this.players.get(id)?.meta || typeof k !== 'number' || !FX_KINDS[k] || typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > 500 || Math.abs(y) > 500) return;
+      if (!this.flood.allow('fx:' + id)) return;
+      this.emit('fx', id, FX_KINDS[k], !!payload.ok, x, y);
+    } else if (ev === 'board') {
+      const id = payload.id;
+      const b = payload.b;
+      if (typeof id !== 'string' || typeof b !== 'string' || !/^[a-z0-9-]{1,24}$/.test(b) || !isMapId(payload.map)) return;
+      if (!this.flood.allow('board:' + id)) return;
+      const text = sanitizeMessage(payload.text) ?? '';
+      const key = payload.map + '|' + b;
+      if (this.boards.get(key) === text) return;
+      this.boards.set(key, text);
+      this.emit('board', payload.map as MapId, b, text);
     } else if (ev === 'coop') {
       const until = payload.until;
       // sanity: only accept a portal window that ends within ~70s and when we are not alone

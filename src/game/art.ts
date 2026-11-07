@@ -18,12 +18,12 @@ export interface ArtTexture {
 }
 
 /** Create a canvas of logical size w x h (drawn at RES) with the anchor point (ax, ay). */
-export function makeArt(w: number, h: number, ax: number, ay: number, draw: (ctx: Ctx) => void): ArtTexture {
+export function makeArt(w: number, h: number, ax: number, ay: number, draw: (ctx: Ctx) => void, res = RES): ArtTexture {
   const canvas = document.createElement('canvas');
-  canvas.width = Math.ceil(w * RES);
-  canvas.height = Math.ceil(h * RES);
+  canvas.width = Math.ceil(w * res);
+  canvas.height = Math.ceil(h * res);
   const ctx = canvas.getContext('2d')!;
-  ctx.scale(RES, RES);
+  ctx.scale(res, res);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   draw(ctx);
@@ -107,7 +107,7 @@ export interface BuildingSpec {
 }
 
 /** Renders a building so that the footprint's north corner (0,0) is the anchor. */
-export function makeBuilding(spec: BuildingSpec): ArtTexture & { anchorPx: { x: number; y: number } } {
+export function makeBuilding(spec: BuildingSpec, res = RES): ArtTexture & { anchorPx: { x: number; y: number } } {
   const pad = 12;
   const w = (spec.w + spec.d) * HW + pad * 2;
   const h = (spec.w + spec.d) * HH + spec.maxH + pad * 2;
@@ -121,7 +121,7 @@ export function makeBuilding(spec: BuildingSpec): ArtTexture & { anchorPx: { x: 
     quad(ctx, [P(-0.3, -0.3), P(spec.w + 0.6, -0.3), P(spec.w + 0.6, spec.d + 0.6), P(-0.3, spec.d + 0.6)], '#1b2a3a');
     ctx.restore();
     spec.draw(ctx, P);
-  });
+  }, res);
   return { ...art, anchorPx: { x: ax, y: ay } };
 }
 

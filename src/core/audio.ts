@@ -54,7 +54,7 @@ function tone(freq: number, start: number, dur: number, type: OscillatorType = '
   o.stop(start + dur + 0.05);
 }
 
-export type Sfx = 'click' | 'chat' | 'emote' | 'stamp' | 'success' | 'join' | 'door' | 'error' | 'shutter' | 'plate';
+export type Sfx = 'click' | 'chat' | 'emote' | 'stamp' | 'success' | 'join' | 'door' | 'error' | 'shutter' | 'plate' | 'piano' | 'drums' | 'swish' | 'miss' | 'kick' | 'quake' | 'eat' | 'sit' | 'ping';
 
 export function play(sfx: Sfx) {
   const c = ensure();
@@ -92,6 +92,45 @@ export function play(sfx: Sfx) {
       break;
     case 'stamp':
       [523, 659, 784, 1047].forEach((f, i) => tone(f, t + i * 0.08, 0.3, 'triangle', 0.18));
+      break;
+    case 'piano': {
+      // a short random pentatonic phrase
+      const scale = [261.6, 293.7, 329.6, 392, 440, 523.3, 587.3, 659.3];
+      let i = Math.floor(Math.random() * 4);
+      for (let n = 0; n < 5; n++) {
+        i = Math.max(0, Math.min(scale.length - 1, i + Math.floor(Math.random() * 5) - 2));
+        tone(scale[i], t + n * 0.18, 0.6, 'triangle', 0.2);
+        tone(scale[i] * 2, t + n * 0.18, 0.3, 'sine', 0.05);
+      }
+      break;
+    }
+    case 'drums':
+      [0, 0.15, 0.3, 0.45].forEach((d, i) => tone(i % 2 ? 180 : 70, t + d, 0.12, i % 2 ? 'square' : 'sine', i % 2 ? 0.07 : 0.3));
+      break;
+    case 'swish':
+      tone(900, t, 0.08, 'sine', 0.12);
+      [523, 784, 1047].forEach((f, i) => tone(f, t + 0.1 + i * 0.08, 0.25, 'triangle', 0.16));
+      break;
+    case 'miss':
+      tone(330, t, 0.15, 'triangle', 0.15);
+      tone(247, t + 0.12, 0.25, 'triangle', 0.15);
+      break;
+    case 'kick':
+      tone(90, t, 0.15, 'sine', 0.35);
+      break;
+    case 'quake':
+      for (let n = 0; n < 8; n++) tone(45 + Math.random() * 20, t + n * 0.12, 0.2, 'sawtooth', 0.12);
+      break;
+    case 'eat':
+      tone(600, t, 0.06, 'square', 0.06);
+      tone(800, t + 0.08, 0.06, 'square', 0.06);
+      break;
+    case 'sit':
+      tone(220, t, 0.1, 'sine', 0.12);
+      break;
+    case 'ping':
+      tone(1500, t, 0.05, 'sine', 0.12);
+      tone(1200, t + 0.25, 0.05, 'sine', 0.12);
       break;
     case 'success':
       [392, 523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, t + i * 0.09, 0.4, 'triangle', 0.18));

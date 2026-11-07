@@ -4,8 +4,8 @@ import { isCoopSolved } from '../src/activities/coop';
 import { hits, isInFrontOf, isoToScreen, moveWithCollision, screenToIso } from '../src/game/iso';
 import { ChatRateLimiter, IncomingFloodGuard, sanitizeMessage } from '../src/social/chatSafety';
 import { parseMeta, parseMove } from '../src/net/multiplayer';
-import { buildCampus } from '../src/game/maps/campus';
-import { buildUnion } from '../src/game/maps/union';
+import { BUILDINGS, doorOutside } from '../src/game/maps/buildings';
+import { buildMap, MAP_IDS } from '../src/game/maps/registry';
 
 describe('isometric math', () => {
   it('round-trips grid ↔ screen', () => {
@@ -99,6 +99,8 @@ describe('network validation', () => {
     expect(parseMove({ id: 'abc', seq: 1, x: NaN, y: 4, f: 'front', map: 'campus' })).toBeNull();
     expect(parseMove({ id: 'abc', seq: 1, x: 3, y: 4, f: 'upside', map: 'campus' })).toBeNull();
     expect(parseMove({ id: 'abc', seq: 1, x: 3, y: 4, f: 'front', map: 'mars' })).toBeNull();
+    expect(parseMove({ id: 'abc', seq: 1, x: 3, y: 4, f: 'front', map: 'davis', p: 1, it: 0 })?.p).toBe(1);
+    expect(parseMove({ id: 'abc', seq: 1, x: 3, y: 4, f: 'front', map: 'davis', p: 9, it: 999 })).toMatchObject({ p: 0, it: -1 });
   });
   it('sanitizes presence metadata', () => {
     expect(parseMeta({ id: 'BAD ID!' })).toBeNull();
@@ -119,18 +121,53 @@ describe('co-op switches', () => {
 });
 
 describe('maps', () => {
-  for (const map of [buildCampus(), buildUnion()]) {
-    it(`${map.id}: spawn and trigger destinations are walkable`, () => {
-      const free = (x: number, y: number) => !map.colliders.some((c) => hits(c, x, y, 0.28));
-      expect(free(map.spawn.x, map.spawn.y)).toBe(true);
-      for (const t of map.triggers) {
-        if (t.action.type === 'teleport') expect(free(t.action.x, t.action.y)).toBe(true);
+  const maps = MAP_IDS.map((id) => buildMap(id));
+  const free = (map: ReturnType<typeof buildMap>, x: number, y: number) => !map.colliders.some((c) => hits(c, x, y, 0.28));
+
+  it('has the campus plus one interior for each of the 19 buildings', () => {
+    expect(BUILDINGS).toHaveLength(19);
+    expect(MAP_IDS).toHaveLength(20);
+    expect(new Set(MAP_IDS).size).toBe(20);
+  });
+
+  for (const map of maps) {
+    it(`${map.id}: spawn and teleport destinations are walkable`, () => {
+      expect(free(map, map.spawn.x, map.spawn.y)).toBe(true);
+      for (const t of map.triggers) if (t.action.type === 'teleport') expect(free(map, t.action.x, t.action.y)).toBe(true);
+    });
+    it(`${map.id}: props sit inside the map`, () => {
+      for (const p of map.props) {
+        expect(p.gx).toBeGreaterThanOrEqual(-0.5);
+        expect(p.gy).toBeGreaterThanOrEqual(-0.5);
+        expect(p.gx).toBeLessThanOrEqual(map.w + 0.5);
+        expect(p.gy).toBeLessThanOrEqual(map.h + 0.5);
       }
     });
   }
-  it('campus has the three landmark stamps', () => {
-    const stamps = buildCampus().interactables.filter((i) => i.action.type === 'stamp');
-    const union = buildUnion().interactables.filter((i) => i.action.type === 'stamp');
-    expect([...stamps, ...union].map((s) => (s.action as { stamp: string }).stamp).sort()).toEqual(['capen', 'davis', 'union']);
+
+  it('every interior has an exit back to campus and a passport stamp', () => {
+    for (const map of maps.filter((m) => m.id !== 'campus')) {
+      expect(map.triggers.some((t) => t.action.type === 'goto' && t.action.to === 'campus')).toBe(true);
+      expect(map.interactables.some((i) => i.action.type === 'stamp' && i.action.stamp === map.id)).toBe(true);
+    }
+  });
+
+  it('every building door is reachable from outside', () => {
+    const campus = maps[0];
+    for (const b of BUILDINGS) {
+      const o = doorOutside(b);
+      expect(free(campus, o.x, o.y), b.id).toBe(true);
+      expect(campus.triggers.some((t) => t.action.type === 'goto' && t.action.to === b.id)).toBe(true);
+    }
+  });
+
+  it('interactive props have sensible actions', () => {
+    for (const map of maps)
+      for (const p of map.props) {
+        if (!p.act) continue;
+        expect(['sit', 'lie', 'eat', 'use']).toContain(p.act.kind);
+        const act = p.act;
+        if (act.kind === 'use' && act.use === 'whiteboard') expect(map.boards?.some((b) => b.id === act.board)).toBe(true);
+      }
   });
 });
