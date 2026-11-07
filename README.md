@@ -12,6 +12,18 @@ Create a student, walk around campus, meet other real players, chat, collect Cam
 
 ---
 
+## For teammates
+
+1. Accept the GitHub invite, then clone:
+   ```bash
+   git clone https://github.com/FitsZenin/bullslife.git
+   cd bullslife
+   npm install
+   ```
+2. Copy `.env.example` to `.env.local` and paste the Supabase URL + anon key (ask in the team chat — they're public client keys, but keep them out of git).
+3. `npm run dev`, then open http://localhost:5173.
+4. Work on a branch (`git checkout -b my-feature`), push it, and open a pull request — avoid editing the same file as a teammate at the same time.
+
 ## Quick start (local)
 
 Requires Node.js 20+.
