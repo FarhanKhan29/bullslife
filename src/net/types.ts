@@ -21,6 +21,8 @@ export interface MovePacket {
   fl: boolean; // flipX (facing left)
   m: boolean; // moving
   map: MapId;
+  p?: number; // pose: 0 stand, 1 sit, 2 lie
+  it?: number; // held item index (-1 = none)
 }
 
 export interface ChatPacket {

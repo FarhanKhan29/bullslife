@@ -14,6 +14,10 @@ export const FACINGS: Facing[] = ['front', 'back', 'side'];
 export const FRAME_W = 32;
 export const FRAME_H = 48;
 export const WALK_FRAMES = 4; // + 1 idle frame (index 0)
+export const SIT_FRAME = 5; // seated pose (after the walk frames)
+
+/** True while drawing the seated frame (legs bent, body lowered). */
+let SIT = false;
 
 // ---------- color helpers ----------
 function hexToRgb(hex: string): [number, number, number] {
@@ -78,7 +82,8 @@ function ellipse(ctx: Ctx, x: number, y: number, rx: number, ry: number) {
  * frame 0 = idle, 1..4 = walk cycle.
  */
 export function drawAvatarFrame(ctx: Ctx, a: Appearance, facing: Facing, frame: number) {
-  const p = frame === 0 ? -1 : (frame - 1) % 4;
+  SIT = frame === SIT_FRAME;
+  const p = frame === 0 || SIT ? -1 : (frame - 1) % 4;
   const swing = p < 0 ? 0 : [0, 1, 0, -1][p];
   const bob = p < 0 ? 0 : p % 2 === 0 ? -0.8 : 0;
 
@@ -90,6 +95,7 @@ export function drawAvatarFrame(ctx: Ctx, a: Appearance, facing: Facing, frame: 
   ellipse(ctx, 16, 46, 8.5, 2.6);
   ctx.fillStyle = 'rgba(20,20,40,0.22)';
   ctx.fill();
+  if (SIT) ctx.translate(0, 5); // seated: the whole body sits lower
 
   if (facing === 'front') drawFront(ctx, a, swing, bob);
   else if (facing === 'back') drawBack(ctx, a, swing, bob);
@@ -100,6 +106,15 @@ export function drawAvatarFrame(ctx: Ctx, a: Appearance, facing: Facing, frame: 
 
 // ---------- shared parts ----------
 function legsFront(ctx: Ctx, a: Appearance, swing: number) {
+  if (SIT) {
+    // knees towards the camera: short thighs + shins
+    for (const x of [11.4, 16.6]) {
+      drawLeg(ctx, a, x - 0.2, 33, 4.4, 4.2);
+      drawLeg(ctx, a, x, 36.6, 4, 3.4);
+      drawShoe(ctx, a, x - 0.4, 38.4, 4.8);
+    }
+    return;
+  }
   const liftL = Math.max(0, swing) * 1.4;
   const liftR = Math.max(0, -swing) * 1.4;
   for (const [x, lift] of [
@@ -658,6 +673,19 @@ function drawSide(ctx: Ctx, a: Appearance, swing: number, bob: number) {
     [back, dimmed],
     [front, a],
   ] as const) {
+    if (SIT) {
+      // thigh forward (horizontal), shin down
+      const off = look === a ? 0.6 : -0.4;
+      rr(ctx, 13 + off, 33, 8, 4, 1.6);
+      paint(ctx, look.pants === 'skirt' || look.pants === 'shorts' ? look.skin : look.pantsColor);
+      if (look.pants === 'shorts') {
+        rr(ctx, 13 + off, 33, 4.5, 4, 1.6);
+        paint(ctx, look.pantsColor);
+      }
+      drawLeg(ctx, look, 18 + off, 35.5, 4, 3.8);
+      drawShoe(ctx, look, 17.8 + off, 37.6, 5.6);
+      continue;
+    }
     drawLeg(ctx, look, leg.x, 33, 4, 10);
     drawShoe(ctx, look, leg.x - 0.2, 41.5, 5.6);
   }
@@ -789,7 +817,7 @@ function drawSide(ctx: Ctx, a: Appearance, swing: number, bob: number) {
  * columns = frames (idle + 4 walk). Returns the canvas.
  */
 export function renderSpriteSheet(a: Appearance, scale = 3): HTMLCanvasElement {
-  const cols = 1 + WALK_FRAMES;
+  const cols = 1 + WALK_FRAMES + 1; // idle, 4 walk frames, sit
   const canvas = document.createElement('canvas');
   canvas.width = FRAME_W * scale * cols;
   canvas.height = FRAME_H * scale * FACINGS.length;

@@ -26,6 +26,8 @@ export type Bus = {
   /** game → UI: modal info card */
   info: (text: string) => void;
   coop: (state: { a: boolean; b: boolean; open: boolean; remaining: number }) => void;
+  /** game → UI: ask the player for a short text (whiteboards). */
+  askText: (title: string, initial: string, done: (text: string | null) => void) => void;
 };
 
 export const bus = new Emitter<Bus>();

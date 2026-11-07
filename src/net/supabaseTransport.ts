@@ -8,7 +8,7 @@ import { createClient, type RealtimeChannel, type SupabaseClient } from '@supaba
 import { SUPABASE_ANON_KEY, SUPABASE_PRIVATE_CHANNELS, SUPABASE_URL } from '../core/config';
 import type { NetStatus, PlayerMeta, Transport } from './types';
 
-export const NET_EVENTS = ['move', 'chat', 'emote', 'hello', 'coop'] as const;
+export const NET_EVENTS = ['move', 'chat', 'emote', 'hello', 'coop', 'fx', 'board'] as const;
 
 let client: SupabaseClient | null = null;
 function getClient(): SupabaseClient {

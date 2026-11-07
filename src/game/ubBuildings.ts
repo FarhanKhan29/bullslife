@@ -467,3 +467,558 @@ export function davisHall(): BuildingSpec {
     },
   };
 }
+
+// ================================================================== generic campus buildings
+export type Mat = 'brick' | 'darkbrick' | 'redbrick' | 'concrete' | 'white' | 'tan';
+const MAT: Record<Mat, { c: string; line: string; roof: string; courses: number }> = {
+  brick: { c: '#7a4434', line: '#663729', roof: '#8f8a84', courses: 3 },
+  darkbrick: { c: '#5e3226', line: '#4d281e', roof: '#7d7872', courses: 3 },
+  redbrick: { c: '#9a4a36', line: '#82392a', roof: '#8f8a84', courses: 3 },
+  concrete: { c: '#cfc8bb', line: '#b8b1a4', roof: '#a9a39a', courses: 12 },
+  white: { c: '#e9e6df', line: '#d2cec5', roof: '#b9b5ad', courses: 14 },
+  tan: { c: '#c9a882', line: '#b5946f', roof: '#9a958c', courses: 4 },
+};
+
+export type WinStyle = 'ribbon' | 'punched' | 'slit' | 'curtain' | 'bands' | 'none';
+export interface Tier {
+  x: number;
+  y: number;
+  w: number;
+  d: number;
+  z?: number;
+  h: number;
+  win: WinStyle;
+  floorH?: number;
+  mat?: Mat;
+}
+
+type Face = (u: number, v: number) => [number, number];
+
+/** Windows on one face. u runs along the face (tiles), v is height (px). */
+function faceWindows(ctx: Ctx, F: Face, len: number, z0: number, z1: number, style: WinStyle, floorH: number, lit: boolean) {
+  const glass = lit ? '#33404d' : '#26303a';
+  const frame = '#15191e';
+  if (style === 'none') return;
+  if (style === 'curtain') {
+    const g = ctx.createLinearGradient(...F(0, z0), ...F(len, z1));
+    g.addColorStop(0, lit ? '#a6d3ef' : '#6fa3c6');
+    g.addColorStop(1, lit ? '#5c97c2' : '#3e7aa8');
+    poly(ctx, [F(0.15, z0 + 4), F(len - 0.15, z0 + 4), F(len - 0.15, z1 - 4), F(0.15, z1 - 4)], g);
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    for (let u = 0.15; u < len; u += 0.5) {
+      ctx.moveTo(...F(u, z0 + 4));
+      ctx.lineTo(...F(u, z1 - 4));
+    }
+    for (let v = z0 + 4; v < z1; v += floorH / 2) {
+      ctx.moveTo(...F(0.15, v));
+      ctx.lineTo(...F(len - 0.15, v));
+    }
+    ctx.stroke();
+    return;
+  }
+  for (let v = z0; v + floorH <= z1 + 0.1; v += floorH) {
+    if (style === 'ribbon' || style === 'bands') {
+      const a = v + floorH * (style === 'bands' ? 0.25 : 0.32);
+      const b = v + floorH * 0.82;
+      poly(ctx, [F(0.25, a), F(len - 0.25, a), F(len - 0.25, b), F(0.25, b)], glass, frame);
+      ctx.strokeStyle = '#7f8b98';
+      ctx.lineWidth = 0.45;
+      ctx.beginPath();
+      for (let u = 0.6; u < len - 0.25; u += 0.45) {
+        ctx.moveTo(...F(u, a));
+        ctx.lineTo(...F(u, b));
+      }
+      ctx.stroke();
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      poly(ctx, [F(0.25, b - 3), F(len - 0.25, b - 3), F(len - 0.25, b), F(0.25, b)], '#d6e6f2');
+      ctx.restore();
+    } else if (style === 'punched') {
+      for (let u = 0.35; u + 0.45 < len; u += 0.8) {
+        const a = v + floorH * 0.3;
+        const b = v + floorH * 0.8;
+        poly(ctx, [F(u, a), F(u + 0.45, a), F(u + 0.45, b), F(u, b)], glass, frame);
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        poly(ctx, [F(u + 0.05, b - 2), F(u + 0.2, b - 2), F(u + 0.12, a + 2), F(u + 0.05, a + 2)], '#ffffff');
+        ctx.restore();
+      }
+    } else if (style === 'slit') {
+      for (let u = 0.4; u + 0.18 < len; u += 0.6) {
+        poly(ctx, [F(u, v + 4), F(u + 0.16, v + 4), F(u + 0.16, v + floorH - 2), F(u, v + floorH - 2)], glass, frame);
+      }
+    }
+  }
+}
+
+function poly(ctx: Ctx, pts: [number, number][], fill: string | CanvasGradient, stroke?: string, lw = 0.7) {
+  ctx.beginPath();
+  ctx.moveTo(...pts[0]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(...pts[i]);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = lw;
+    ctx.stroke();
+  }
+}
+
+/** Draw one box tier with material texture and windows on its two visible faces. */
+export function drawTier(ctx: Ctx, P: Proj, t: Tier, mat: Mat) {
+  const m = MAT[t.mat ?? mat];
+  const z = t.z ?? 0;
+  isoBox(ctx, P, t.x, t.y, t.w, t.d, z, t.h, m.c, { top: m.roof });
+  const S: Face = (u, v) => P(t.x + u, t.y + t.d, v);
+  const E: Face = (u, v) => P(t.x + t.w, t.y + u, v);
+  courses(ctx, S, 0, t.w, z, z + t.h, m.courses, m.line, 0.35);
+  courses(ctx, E, 0, t.d, z, z + t.h, m.courses, shade(m.line, -0.08), 0.35);
+  const fh = t.floorH ?? 18;
+  faceWindows(ctx, S, t.w, z, z + t.h - 4, t.win, fh, true);
+  faceWindows(ctx, E, t.d, z, z + t.h - 4, t.win, fh, false);
+  if (t.win === 'bands') {
+    // concrete spandrel lines between window bands
+    ctx.strokeStyle = shade(m.c, 0.12);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let v = z + fh; v < z + t.h; v += fh) {
+      ctx.moveTo(...S(0, v));
+      ctx.lineTo(...S(t.w, v));
+      ctx.moveTo(...E(0, v));
+      ctx.lineTo(...E(t.d, v));
+    }
+    ctx.stroke();
+  }
+}
+
+/** Glass entrance with a canopy and a small name plate. */
+export function drawDoor(ctx: Ctx, P: Proj, side: 's' | 'e', x: number, y: number, u: number, name?: string, color = '#1f5fbf') {
+  const F: Face = side === 's' ? (a, v) => P(x + a, y, v) : (a, v) => P(x, y + a, v);
+  const w = 1.4;
+  poly(ctx, [F(u, 0), F(u + w, 0), F(u + w, 30), F(u, 30)], '#2c3e50', '#111', 0.8);
+  poly(ctx, [F(u + 0.08, 0), F(u + w / 2 - 0.03, 0), F(u + w / 2 - 0.03, 26), F(u + 0.08, 26)], '#9fd3f0', '#35506a', 0.6);
+  poly(ctx, [F(u + w / 2 + 0.03, 0), F(u + w - 0.08, 0), F(u + w - 0.08, 26), F(u + w / 2 + 0.03, 26)], '#8cc6e8', '#35506a', 0.6);
+  // canopy
+  const out = side === 's' ? (a: number, v: number) => P(x + a, y + 0.6, v) : (a: number, v: number) => P(x + 0.6, y + a, v);
+  poly(ctx, [F(u - 0.2, 33), F(u + w + 0.2, 33), out(u + w + 0.2, 31), out(u - 0.2, 31)], '#e8e4dc', '#8f8a84', 0.7);
+  // light spill
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  poly(ctx, [F(u, 0), F(u + w, 0), out(u + w + 0.3, 0), out(u - 0.3, 0)], '#ffe7a8');
+  ctx.restore();
+  if (name) {
+    poly(ctx, [F(u - 0.3, 37), F(u + w + 0.3, 37), F(u + w + 0.3, 45), F(u - 0.3, 45)], color, '#0b2f5a', 0.6);
+    ctx.save();
+    const [tx, ty] = F(u + w / 2, 41);
+    ctx.translate(tx, ty);
+    ctx.transform(1, side === 's' ? 0.5 : -0.5, 0, 1, 0, 0);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 5px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name, 0, 0);
+    ctx.restore();
+  }
+}
+
+export interface SlabSpec {
+  w: number;
+  d: number;
+  mat: Mat;
+  tiers: Tier[];
+  door: { side: 's' | 'e'; u: number };
+  name: string;
+  extra?: (ctx: Ctx, P: Proj) => void;
+}
+
+export function slab(spec: SlabSpec): BuildingSpec {
+  const maxH = Math.max(...spec.tiers.map((t) => (t.z ?? 0) + t.h)) + 20;
+  return {
+    w: spec.w,
+    d: spec.d,
+    maxH,
+    draw(ctx, P) {
+      [...spec.tiers].sort((a, b) => (a.z ?? 0) - (b.z ?? 0) || a.x + a.y - (b.x + b.y)).forEach((t) => drawTier(ctx, P, t, spec.mat));
+      // roof clutter
+      const top = spec.tiers.reduce((a, b) => ((a.z ?? 0) + a.h >= (b.z ?? 0) + b.h ? a : b));
+      isoBox(ctx, P, top.x + 0.5, top.y + 0.5, 0.9, 0.7, (top.z ?? 0) + top.h, 7, '#a5adb6');
+      isoBox(ctx, P, top.x + top.w - 1.5, top.y + 0.6, 0.7, 0.6, (top.z ?? 0) + top.h, 5, '#b9c0c8');
+      spec.extra?.(ctx, P);
+      const d = spec.door;
+      if (d.side === 's') drawDoor(ctx, P, 's', 0, spec.d, d.u, spec.name);
+      else drawDoor(ctx, P, 'e', spec.w, 0, d.u, spec.name);
+    },
+  };
+}
+
+// ------------------------------------------------------------------ Academic Spine
+export const baldyHall = () =>
+  slab({ w: 8, d: 7, mat: 'darkbrick', name: 'Baldy Hall', door: { side: 's', u: 3.3 }, tiers: [{ x: 0, y: 0, w: 8, d: 7, h: 108, win: 'ribbon', floorH: 18 }] });
+
+export const clemensHall = () =>
+  slab({
+    w: 7,
+    d: 8,
+    mat: 'brick',
+    name: 'Clemens Hall',
+    door: { side: 's', u: 2.8 },
+    tiers: [
+      { x: 0, y: 0, w: 7, d: 8, h: 36, win: 'punched', floorH: 18 },
+      { x: 0.7, y: 0.7, w: 5.6, d: 5.8, z: 36, h: 126, win: 'ribbon', floorH: 18 },
+    ],
+    extra(ctx, P) {
+      // vertical brick piers on the tower
+      for (let u = 0.7; u <= 6.3; u += 1.4) isoBox(ctx, P, u - 0.1, 6.4, 0.25, 0.15, 36, 126, '#83493a');
+    },
+  });
+
+export const nortonHall = () =>
+  slab({
+    w: 7,
+    d: 6,
+    mat: 'brick',
+    name: 'Norton Hall',
+    door: { side: 's', u: 2.8 },
+    tiers: [
+      { x: 0, y: 0, w: 7, d: 3, h: 84, win: 'none' }, // lecture hall block (windowless)
+      { x: 0, y: 3, w: 7, d: 3, h: 54, win: 'punched', floorH: 18 },
+    ],
+  });
+
+export const talbertHall = () =>
+  slab({
+    w: 7,
+    d: 7,
+    mat: 'brick',
+    name: 'Talbert Hall',
+    door: { side: 's', u: 2.8 },
+    tiers: [
+      { x: 0, y: 0, w: 7, d: 7, h: 72, win: 'ribbon', floorH: 18 },
+      { x: 0.8, y: 0.6, w: 5.4, d: 5.4, z: 72, h: 18, win: 'ribbon', floorH: 18 },
+    ],
+  });
+
+export const lockwoodLibrary = () =>
+  slab({
+    w: 9,
+    d: 8,
+    mat: 'darkbrick',
+    name: 'Lockwood Library',
+    door: { side: 'e', u: 3.3 },
+    tiers: [
+      { x: 0, y: 0, w: 9, d: 8, h: 26, win: 'curtain', floorH: 26, mat: 'concrete' },
+      { x: 0, y: 0, w: 9, d: 8, z: 26, h: 96, win: 'slit', floorH: 24 },
+    ],
+  });
+
+// ------------------------------------------------------------------ Engineering
+export const bellHall = () =>
+  slab({ w: 8, d: 7, mat: 'concrete', name: 'Bell Hall', door: { side: 's', u: 3.3 }, tiers: [{ x: 0, y: 0, w: 8, d: 7, h: 80, win: 'bands', floorH: 20 }] });
+
+export const furnasHall = () =>
+  slab({
+    w: 7,
+    d: 6,
+    mat: 'brick',
+    name: 'Furnas Hall',
+    door: { side: 's', u: 2.8 },
+    tiers: [{ x: 0, y: 0, w: 7, d: 6, h: 76, win: 'punched', floorH: 19 }],
+    extra(ctx, P) {
+      for (const v of [19, 38, 57]) poly(ctx, [P(0, 6, v), P(7, 6, v), P(7, 6, v + 2.5), P(0, 6, v + 2.5)], '#d8d0c2');
+    },
+  });
+
+export const ketterHall = () =>
+  slab({
+    w: 7,
+    d: 7,
+    mat: 'concrete',
+    name: 'Ketter Hall',
+    door: { side: 'e', u: 4.2 },
+    tiers: [
+      { x: 0, y: 0, w: 4, d: 7, h: 112, win: 'none', mat: 'tan' }, // high-bay structures lab
+      { x: 4, y: 0, w: 3, d: 7, h: 72, win: 'bands', floorH: 18 },
+    ],
+    extra(ctx, P) {
+      // corrugated metal ribs on the lab box
+      ctx.strokeStyle = '#a88e70';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      for (let u = 0.2; u < 4; u += 0.18) {
+        ctx.moveTo(...P(u, 7, 0));
+        ctx.lineTo(...P(u, 7, 112));
+      }
+      ctx.stroke();
+      poly(ctx, [P(0.6, 7, 70), P(3.4, 7, 70), P(3.4, 7, 82), P(0.6, 7, 82)], '#2b2f38');
+      textOnSouth(ctx, P, 2, 7, 76, 'STRUCTURES LAB', 'bold 6px system-ui, sans-serif', '#ffd75e');
+    },
+  });
+
+// ------------------------------------------------------------------ Residence halls
+export function ellicottComplex(): BuildingSpec {
+  // Franzen's "hill town": clusters of stepped brick towers with angled skylight roofs
+  const W = 16;
+  const D = 14;
+  const blocks: Tier[] = [];
+  const hs = [
+    [70, 110, 90, 130],
+    [90, 140, 120, 100],
+    [60, 100, 130, 80],
+    [50, 80, 60, 70],
+  ];
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+    if (i === 3 && j === 1) continue; // courtyard opening near the door
+    blocks.push({ x: j * 4 + 0.2, y: i * 3.5 + 0.2, w: 3.6, d: 3.1, h: hs[i][j], win: 'punched', floorH: 17, mat: 'redbrick' });
+  }
+  return {
+    w: W,
+    d: D,
+    maxH: 180,
+    draw(ctx, P) {
+      blocks.sort((a, b) => a.x + a.y - (b.x + b.y)).forEach((t) => {
+        drawTier(ctx, P, t, 'redbrick');
+        // sloped skylight cap
+        const z = t.h;
+        poly(ctx, [P(t.x, t.y, z), P(t.x + t.w, t.y, z), P(t.x + t.w, t.y + t.d * 0.5, z + 14), P(t.x, t.y + t.d * 0.5, z + 14)], '#8fb8d0', '#4f6f86');
+        poly(ctx, [P(t.x, t.y + t.d * 0.5, z + 14), P(t.x + t.w, t.y + t.d * 0.5, z + 14), P(t.x + t.w, t.y + t.d, z), P(t.x, t.y + t.d, z)], '#a87060', '#6b3b2c');
+      });
+      // low glass link at the entrance courtyard
+      isoBox(ctx, P, 4.2, 10.7, 3.6, 3.3, 0, 28, '#7fb3d4', { top: '#cfe3ef' });
+      drawDoor(ctx, P, 's', 0, D, 5.3, 'Ellicott Complex', '#9a4a36');
+    },
+  };
+}
+
+export function governorsComplex(): BuildingSpec {
+  // four small brick residence halls around a courtyard
+  return {
+    w: 8,
+    d: 8,
+    maxH: 90,
+    draw(ctx, P) {
+      quad(ctx, [P(2.9, 2.9), P(5.1, 2.9), P(5.1, 5.1), P(2.9, 5.1)], '#7fbf69');
+      const halls: [number, number][] = [
+        [0, 0],
+        [5.1, 0],
+        [0, 5.1],
+        [5.1, 5.1],
+      ];
+      for (const [x, y] of halls) drawTier(ctx, P, { x, y, w: 2.9, d: 2.9, h: 62, win: 'punched', floorH: 15 }, 'brick');
+      // little courtyard tree
+      const [tx, ty] = P(4, 4, 0);
+      ctx.fillStyle = '#6b4a31';
+      ctx.fillRect(tx - 1.5, ty - 18, 3, 18);
+      for (const [dx, dy, r] of [
+        [0, -26, 10],
+        [-6, -22, 7],
+        [6, -21, 7],
+      ]) {
+        ctx.beginPath();
+        ctx.arc(tx + dx, ty + dy, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#e8913c';
+        ctx.fill();
+      }
+      drawDoor(ctx, P, 'e', 8, 0, 5.8, 'Governors', '#7a4434');
+    },
+  };
+}
+
+export function greinerHall(): BuildingSpec {
+  return {
+    w: 8,
+    d: 7,
+    maxH: 120,
+    draw(ctx, P) {
+      drawTier(ctx, P, { x: 0, y: 0, w: 8, d: 3, h: 96, win: 'punched', floorH: 19 }, 'redbrick');
+      drawTier(ctx, P, { x: 0, y: 3, w: 3.2, d: 4, h: 96, win: 'punched', floorH: 19 }, 'redbrick');
+      // white panel frames + glass corner (modern residence hall)
+      isoBox(ctx, P, 3.2, 3, 4.8, 4, 0, 40, '#e9e6df', { top: '#b9b5ad' });
+      faceWindows(ctx, (u, v) => P(3.2 + u, 7, v), 4.8, 0, 40, 'curtain', 20, true);
+      faceWindows(ctx, (u, v) => P(8, 3 + u, v), 4, 0, 40, 'curtain', 20, false);
+      for (let v = 19; v < 96; v += 19) poly(ctx, [P(0, 7, v), P(3.2, 7, v), P(3.2, 7, v + 2), P(0, 7, v + 2)], '#f1eee8');
+      drawDoor(ctx, P, 's', 3.2, 7, 1.6, 'Greiner Hall', '#9a4a36');
+    },
+  };
+}
+
+// ------------------------------------------------------------------ Sports, arts, food
+export function alumniArena(): BuildingSpec {
+  const W = 12;
+  const D = 10;
+  return {
+    w: W,
+    d: D,
+    maxH: 120,
+    draw(ctx, P) {
+      drawTier(ctx, P, { x: 0, y: 0, w: W, d: D, h: 70, win: 'none', mat: 'tan' }, 'tan');
+      // UB blue band + lettering
+      poly(ctx, [P(0, D, 46), P(W, D, 46), P(W, D, 58), P(0, D, 58)], '#005bbb');
+      poly(ctx, [P(W, 0, 46), P(W, D, 46), P(W, D, 58), P(W, 0, 58)], '#00479a');
+      textOnSouth(ctx, P, W / 2, D, 52, 'ALUMNI ARENA', 'bold 8px system-ui, sans-serif', '#ffffff');
+      // barrel-vault roof (along x)
+      const steps = 10;
+      for (let i = 0; i < steps; i++) {
+        const a0 = (i / steps) * Math.PI;
+        const a1 = ((i + 1) / steps) * Math.PI;
+        const y0 = (D / 2) * (1 - Math.cos(a0));
+        const y1 = (D / 2) * (1 - Math.cos(a1));
+        const z0 = 70 + Math.sin(a0) * 34;
+        const z1 = 70 + Math.sin(a1) * 34;
+        const light = i < steps / 2 ? 0.1 : -0.05;
+        poly(ctx, [P(0, y0, z0), P(W, y0, z0), P(W, y1, z1), P(0, y1, z1)], shade('#b9c4cf', light), '#8a96a3', 0.4);
+      }
+      // gable ends on the east
+      ctx.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const a = (i / steps) * Math.PI;
+        const p = P(W, (D / 2) * (1 - Math.cos(a)), 70 + Math.sin(a) * 34);
+        i === 0 ? ctx.moveTo(...p) : ctx.lineTo(...p);
+      }
+      ctx.closePath();
+      ctx.fillStyle = '#a9b4bf';
+      ctx.fill();
+      faceWindows(ctx, (u, v) => P(W, u, v), D, 0, 44, 'curtain', 22, false);
+      drawDoor(ctx, P, 'e', W, 0, 4.3, 'Alumni Arena');
+    },
+  };
+}
+
+export function ubStadium(): BuildingSpec {
+  const W = 16;
+  const D = 12;
+  return {
+    w: W,
+    d: D,
+    maxH: 120,
+    draw(ctx, P) {
+      // field
+      quad(ctx, [P(2.6, 2.6), P(W - 0.6, 2.6), P(W - 0.6, D - 0.6), P(2.6, D - 0.6)], '#4f9a4a', '#3d7a3a', 1);
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      for (let x = 4; x < W - 1; x += 1.2) {
+        ctx.moveTo(...P(x, 3));
+        ctx.lineTo(...P(x, D - 1));
+      }
+      ctx.stroke();
+      quad(ctx, [P(3, 3), P(4, 3), P(4, D - 1), P(3, D - 1)], '#005bbb');
+      quad(ctx, [P(W - 2, 3), P(W - 1, 3), P(W - 1, D - 1), P(W - 2, D - 1)], '#005bbb');
+      // stands: north (back) and west (back), stepped with blue seats
+      for (let i = 0; i < 6; i++) {
+        isoBox(ctx, P, 2.4, 0.2 + i * 0.4, W - 2.4, 0.4, 0, 60 - i * 10, i % 2 ? '#c9c4ba' : '#005bbb', { top: i % 2 ? '#d9d4ca' : '#1f6cc6' });
+        isoBox(ctx, P, 0.2 + i * 0.4, 2.4, 0.4, D - 2.4, 0, 60 - i * 10, i % 2 ? '#c9c4ba' : '#005bbb', { top: i % 2 ? '#d9d4ca' : '#1f6cc6' });
+      }
+      // press box
+      isoBox(ctx, P, 6, 0, 5, 1.2, 60, 22, '#e9e6df');
+      poly(ctx, [P(6.2, 1.2, 66), P(10.8, 1.2, 66), P(10.8, 1.2, 78), P(6.2, 1.2, 78)], '#5c97c2');
+      // light towers
+      for (const [x, y] of [
+        [1, 1],
+        [W - 0.5, 0.6],
+        [0.6, D - 0.5],
+      ]) {
+        isoBox(ctx, P, x - 0.1, y - 0.1, 0.2, 0.2, 0, 110, '#7b8896');
+        isoBox(ctx, P, x - 0.5, y - 0.2, 1, 0.3, 110, 10, '#f4f4f4');
+      }
+      // front fence + gate
+      for (let x = 2.6; x < W; x += 0.3) poly(ctx, [P(x, D, 0), P(x + 0.04, D, 0), P(x + 0.04, D, 10), P(x, D, 10)], '#5e6670');
+      poly(ctx, [P(2.6, D, 10), P(W, D, 10), P(W, D, 11), P(2.6, D, 11)], '#5e6670');
+      isoBox(ctx, P, W - 0.4, 4.4, 0.4, 3, 0, 32, '#c9c4ba');
+      drawDoor(ctx, P, 'e', W, 0, 5.2, 'UB Stadium');
+    },
+  };
+}
+
+export function centerForTheArts(): BuildingSpec {
+  const W = 10;
+  const D = 7;
+  return {
+    w: W,
+    d: D,
+    maxH: 110,
+    draw(ctx, P) {
+      drawTier(ctx, P, { x: 0, y: 0, w: W, d: 5, h: 84, win: 'none', mat: 'white' }, 'white');
+      drawTier(ctx, P, { x: 6, y: 5, w: 4, d: 2, h: 60, win: 'none', mat: 'white' }, 'white');
+      // big angled glass atrium wedge on the front-left
+      const z1 = 84;
+      poly(ctx, [P(0, 5, 0), P(6, 5, 0), P(6, 7, 0), P(0, 7, 0)], '#3e5f78');
+      const g = ctx.createLinearGradient(...P(0, 7, 0), ...P(6, 5, z1));
+      g.addColorStop(0, '#bfe2f5');
+      g.addColorStop(1, '#5c97c2');
+      poly(ctx, [P(0, 7, 0), P(6, 7, 0), P(6, 5, z1), P(0, 5, z1)], g, '#4f7f9f', 1);
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      for (let u = 0.6; u < 6; u += 0.6) {
+        ctx.moveTo(...P(u, 7, 0));
+        ctx.lineTo(...P(u, 5, z1));
+      }
+      for (let t = 0.2; t < 1; t += 0.2) {
+        ctx.moveTo(...P(0, 7 - 2 * t, z1 * t));
+        ctx.lineTo(...P(6, 7 - 2 * t, z1 * t));
+      }
+      ctx.stroke();
+      poly(ctx, [P(6, 5, 0), P(6, 7, 0), P(6, 5, z1)], '#7fb3d4', '#4f7f9f', 0.8);
+      textOnSouth(ctx, P, 8, 7, 40, 'CENTER FOR', 'bold 6px system-ui, sans-serif', '#3b3f45');
+      textOnSouth(ctx, P, 8, 7, 32, 'THE ARTS', 'bold 6px system-ui, sans-serif', '#3b3f45');
+      drawDoor(ctx, P, 's', 0, 7, 2.3);
+    },
+  };
+}
+
+export function theCommons(): BuildingSpec {
+  const W = 8;
+  const D = 6;
+  return {
+    w: W,
+    d: D,
+    maxH: 70,
+    draw(ctx, P) {
+      drawTier(ctx, P, { x: 0, y: 0, w: W, d: D, h: 46, win: 'punched', floorH: 23 }, 'brick');
+      // glass storefronts with colourful awnings
+      const colors = ['#d94b4b', '#f2a93b', '#3fae6b', '#005bbb'];
+      for (let i = 0; i < 4; i++) {
+        const u = 0.3 + i * 1.95;
+        poly(ctx, [P(u, D, 0), P(u + 1.6, D, 0), P(u + 1.6, D, 20), P(u, D, 20)], '#8cc6e8', '#35506a', 0.7);
+        poly(ctx, [P(u - 0.1, D, 22), P(u + 1.7, D, 22), P(u + 1.7, D + 0.5, 18), P(u - 0.1, D + 0.5, 18)], colors[i], shade(colors[i], -0.4), 0.6);
+      }
+      textOnSouth(ctx, P, W / 2, D, 38, 'THE COMMONS', 'bold 7px system-ui, sans-serif', '#ffffff');
+      drawDoor(ctx, P, 'e', W, 0, 2.3, 'The Commons', '#7a4434');
+    },
+  };
+}
+
+export function crossroads(): BuildingSpec {
+  const W = 8;
+  const D = 6;
+  return {
+    w: W,
+    d: D,
+    maxH: 80,
+    draw(ctx, P) {
+      isoBox(ctx, P, 0, 0, W, D, 0, 52, '#c9a27a', { top: '#8f8a84' });
+      // vertical wood slats
+      ctx.strokeStyle = '#a07a52';
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      for (let u = 0.1; u < W; u += 0.22) {
+        ctx.moveTo(...P(u, D, 26));
+        ctx.lineTo(...P(u, D, 52));
+      }
+      for (let u = 0.1; u < D; u += 0.22) {
+        ctx.moveTo(...P(W, u, 26));
+        ctx.lineTo(...P(W, u, 52));
+      }
+      ctx.stroke();
+      faceWindows(ctx, (u, v) => P(u, D, v), W, 0, 26, 'curtain', 26, true);
+      faceWindows(ctx, (u, v) => P(W, u, v), D, 0, 26, 'curtain', 26, false);
+      // floating roof overhang
+      isoBox(ctx, P, -0.3, -0.3, W + 0.6, D + 0.6, 52, 5, '#e9e6df', { top: '#d9d4ca' });
+      textOnSouth(ctx, P, W / 2, D, 40, 'CROSSROADS CULINARY CENTER', 'bold 5.5px system-ui, sans-serif', '#3b2a1e');
+      drawDoor(ctx, P, 's', 0, D, 3.3);
+    },
+  };
+}
