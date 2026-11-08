@@ -20,10 +20,11 @@ import { depthOf, hits, isInFrontOf, isoToScreen, moveWithCollision, screenDirTo
 import { inventory, type GroundItem } from './inventory';
 import { ITEM_NAMES, ITEMS, useFlavor } from './items';
 import { BUILDING_BY_ID } from './maps/buildings';
-import { CAMPUS_SPAWN, COOP, LAKE, PLAZA } from './maps/campus';
+import { BUS_ROUTES, CAMPUS_SPAWN, COOP, LAKE, PLAZA } from './maps/campus';
 import { buildMap } from './maps/registry';
 import type { Interactable, MapDef, MapId, Prop, PropAct, Trigger } from './maps/types';
 import { ORIGINS, registerAllTextures, renderGround } from './textures';
+import { npcsFor, type NpcDef } from './npcs';
 import { worldState } from './worldState';
 import { appearanceKey, defaultAppearance } from '../character/appearance';
 import { isModalOpen } from '../ui/dom';
@@ -44,7 +45,32 @@ interface BuildingRef {
   depth: number;
 }
 
-type Target = { kind: 'interactable'; it: Interactable } | { kind: 'prop'; prop: Prop; act: PropAct } | { kind: 'drop'; drop: GroundItem };
+type Target = { kind: 'interactable'; it: Interactable } | { kind: 'prop'; prop: Prop; act: PropAct } | { kind: 'drop'; drop: GroundItem } | { kind: 'npc'; npc: LiveNpc };
+
+interface LiveNpc {
+  def: NpcDef;
+  av: Avatar;
+  leg: number; // index of the route point being walked to
+  dir: 1 | -1;
+  wait: number; // seconds to stand still (after being spoken to)
+}
+
+interface LiveGroup {
+  members: LiveNpc[];
+  talks: string[][];
+  talk: number;
+  line: number;
+  timer: number;
+}
+
+interface LiveBus {
+  img: Phaser.GameObjects.Image;
+  route: { x: number; y: number; stop?: boolean }[];
+  leg: number;
+  x: number;
+  y: number;
+  pause: number;
+}
 
 export interface WorldData {
   map?: MapId;
@@ -60,6 +86,8 @@ export class WorldScene extends Phaser.Scene {
   private player?: Avatar;
   private remotes = new Map<string, Avatar>();
   private remoteLook = new Map<string, string>();
+  private npcGroups: LiveGroup[] = [];
+  private buses: LiveBus[] = [];
   private remoteGlide = new Map<string, { seq: number; speed: number }>();
   private buildings: BuildingRef[] = [];
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
@@ -94,6 +122,8 @@ export class WorldScene extends Phaser.Scene {
     this.spawn = data.spawn;
     this.remotes = new Map();
     this.remoteLook = new Map();
+    this.npcGroups = [];
+    this.buses = [];
     this.remoteGlide = new Map();
     this.buildings = [];
     this.currentPrompt = null;
@@ -122,6 +152,7 @@ export class WorldScene extends Phaser.Scene {
     this.buildProps();
     this.buildBoards();
     if (this.mapId === 'campus') this.buildCampusLife();
+    this.buildNpcs();
     this.setupCamera();
 
     if (this.mode === 'play') this.setupPlay();
@@ -249,7 +280,134 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  private buildNpcs() {
+    this.npcGroups = npcsFor(this.map).map((g, i) => ({
+      members: g.members.map((def) => {
+        const av = new Avatar(this, def.x, def.y, def.look, false);
+        av.markNpc();
+        av.setDepth(this.resolveDepth(def.x, def.y));
+        return { def, av, leg: 1, dir: 1 as const, wait: 0 };
+      }),
+      talks: g.talks,
+      talk: i % Math.max(1, g.talks.length),
+      line: 0,
+      timer: 1 + (i % 7) * 1.3,
+    }));
+    // people in a conversation turn towards each other
+    for (const g of this.npcGroups) {
+      g.members.forEach((m, i) => {
+        const other = g.members[(i + 1) % g.members.length];
+        if (other === m) return;
+        m.av.facing = 'side';
+        m.av.flip = other.av.x < m.av.x;
+      });
+    }
+  }
+
+  private spawnBuses() {
+    this.buses = BUS_ROUTES.map((route) => {
+      const start = route[0];
+      const o = ORIGINS.get('bus_x_f')!;
+      const img = this.add.image(0, 0, 'bus_x_f').setOrigin(o.x, o.y).setScale(o.s);
+      return { img, route, leg: 1, x: start.x, y: start.y, pause: 0 };
+    });
+  }
+
+  private updateBuses(dt: number) {
+    const SPEED = 8; // tiles per second
+    for (const b of this.buses) {
+      if (b.pause > 0) {
+        b.pause -= dt;
+        continue;
+      }
+      const target = b.route[b.leg];
+      const dx = target.x - b.x;
+      const dy = target.y - b.y;
+      const dist = Math.hypot(dx, dy);
+      const step = SPEED * dt;
+      if (dist <= step) {
+        b.x = target.x;
+        b.y = target.y;
+        b.leg = (b.leg + 1) % b.route.length;
+        if (target.stop) b.pause = 3;
+      } else {
+        b.x += (dx / dist) * step;
+        b.y += (dy / dist) * step;
+      }
+      const alongX = Math.abs(dx) > Math.abs(dy);
+      const towardsCamera = alongX ? dx > 0 : dy > 0;
+      b.img.setTexture(`bus_${alongX ? 'x' : 'y'}_${towardsCamera ? 'f' : 'r'}`);
+      const s = isoToScreen(b.x, b.y);
+      b.img.setPosition(s.x, s.y).setDepth(this.resolveDepth(b.x, b.y));
+    }
+  }
+
+  private updateNpcs(dt: number) {
+    const p = this.player;
+    for (const g of this.npcGroups) {
+      for (const m of g.members) {
+        const route = m.def.route;
+        m.wait = Math.max(0, m.wait - dt);
+        m.av.moving = false;
+        if (route && m.wait === 0) {
+          const target = route[m.leg];
+          const dx = target.x - m.av.gx;
+          const dy = target.y - m.av.gy;
+          const dist = Math.hypot(dx, dy);
+          const step = 1.9 * dt;
+          if (dist <= step) {
+            if (m.leg === route.length - 1) m.dir = -1;
+            else if (m.leg === 0) m.dir = 1;
+            m.leg += m.dir;
+          } else {
+            m.av.setGridPos(m.av.gx + (dx / dist) * step, m.av.gy + (dy / dist) * step);
+            m.av.moving = true;
+            const sx = dx - dy; // screen direction
+            const sy = dx + dy;
+            if (Math.abs(sx) > Math.abs(sy) * 0.5) {
+              m.av.facing = 'side';
+              m.av.flip = sx < 0;
+            } else m.av.facing = sy > 0 ? 'front' : 'back';
+          }
+          m.av.setDepth(this.resolveDepth(m.av.gx, m.av.gy));
+        }
+        m.av.tick(dt * 1000);
+      }
+      if (!g.talks.length) continue;
+      g.timer -= dt;
+      if (g.timer > 0) continue;
+      const anchor = g.members[0].av;
+      // only chat near the player so the screen stays readable
+      if (!p || Math.hypot(anchor.gx - p.gx, anchor.gy - p.gy) > 13) {
+        g.timer = 2;
+        continue;
+      }
+      const talk = g.talks[g.talk];
+      g.members[g.line % g.members.length].av.showBubble(talk[g.line]);
+      g.line++;
+      if (g.line < talk.length) g.timer = 3.6;
+      else {
+        // the group reacts when the conversation lands
+        for (const m of g.members) if (Math.random() < 0.6) m.av.showEmote(Math.floor(Math.random() * 3));
+        g.line = 0;
+        g.talk = (g.talk + 1) % g.talks.length;
+        g.timer = 8 + Math.random() * 8;
+      }
+    }
+  }
+
+  private talkToNpc(npc: LiveNpc) {
+    const p = this.player!;
+    sfx('chat');
+    npc.wait = 4;
+    npc.av.moving = false;
+    npc.av.facing = 'side';
+    npc.av.flip = p.x < npc.av.x;
+    npc.av.showBubble(npc.def.lines[Math.floor(Math.random() * npc.def.lines.length)]);
+  }
+
   private buildCampusLife() {
+    this.spawnBuses();
     // co-op plates
     for (const k of ['A', 'B'] as const) {
       const pos = k === 'A' ? COOP.plateA : COOP.plateB;
@@ -575,6 +733,7 @@ export class WorldScene extends Phaser.Scene {
     if (this.pose !== 'stand') return this.standUp();
     const t = this.target;
     if (!t) return;
+    if (t.kind === 'npc') return this.talkToNpc(t.npc);
     if (t.kind === 'interactable') return this.useInteractable(t.it);
     if (t.kind === 'drop') {
       const result = inventory.pickUp(this.mapId, t.drop.id);
@@ -812,6 +971,8 @@ export class WorldScene extends Phaser.Scene {
   // ---------------------------------------------------------------- per-frame
   update(_time: number, delta: number) {
     const dt = Math.min(delta, 50) / 1000;
+    this.updateBuses(dt);
+    this.updateNpcs(dt);
     if (this.mode === 'play' && this.player) {
       this.updatePlayer(dt);
       this.updateRemotes(dt);
@@ -964,12 +1125,24 @@ export class WorldScene extends Phaser.Scene {
         }
       }
     }
+    if (this.pose === 'stand') {
+      for (const g of this.npcGroups) {
+        for (const npc of g.members) {
+          const d = Math.hypot(npc.av.gx - p.gx, npc.av.gy - p.gy);
+          if (d < 1.4 && d < bestD) {
+            best = { kind: 'npc', npc };
+            bestD = d;
+          }
+        }
+      }
+    }
     this.target = best;
     let text: string | null = null;
     if (this.pose === 'sit') text = 'E|Stand up';
     else if (this.pose === 'lie') text = 'E|Get up';
     else if (best?.kind === 'interactable') text = 'E|' + best.it.prompt;
     else if (best?.kind === 'prop') text = 'E|' + actLabel(best.act);
+    else if (best?.kind === 'npc') text = 'E|Talk to ' + best.npc.def.name;
     else if (best?.kind === 'drop') text = 'E|' + (inventory.slots.includes(null) ? 'Pick up ' : 'Swap for ') + ITEM_NAMES[best.drop.item];
     if (!text && this.mapId === 'campus') text = this.coopPrompt();
     if (text !== this.currentPrompt) {

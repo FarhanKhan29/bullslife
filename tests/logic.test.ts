@@ -5,7 +5,8 @@ import { hits, isInFrontOf, isoToScreen, moveWithCollision, screenToIso } from '
 import { ChatRateLimiter, IncomingFloodGuard, sanitizeMessage } from '../src/social/chatSafety';
 import { parseMeta, parseMove } from '../src/net/multiplayer';
 import { BUILDINGS, BUILDING_BY_ID, doorOutside, doorTrigger } from '../src/game/maps/buildings';
-import { COOP, LAKE } from '../src/game/maps/campus';
+import { BUS_ROUTES, COOP, LAKE, PARKING_LOTS, ROADS } from '../src/game/maps/campus';
+import { npcsFor } from '../src/game/npcs';
 import { buildMap, MAP_IDS } from '../src/game/maps/registry';
 
 describe('isometric math', () => {
@@ -239,5 +240,70 @@ describe('maps', () => {
         const act = p.act;
         if (act.kind === 'use' && act.use === 'whiteboard') expect(map.boards?.some((b) => b.id === act.board)).toBe(true);
       }
+  });
+});
+
+describe('roads, buses and NPCs', () => {
+  const campus = buildMap('campus');
+  const drivable = ['road', 'crosswalk', 'asphalt'];
+  const free = (m: ReturnType<typeof buildMap>, x: number, y: number, r = 0.2) => !m.colliders.some((c) => hits(c, x, y, r));
+
+  it('every parking lot is connected to the road network', () => {
+    const seen = new Set<string>(['4,4']);
+    const queue = [[4, 4]];
+    while (queue.length) {
+      const [x, y] = queue.pop()!;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const key = `${x + dx},${y + dy}`;
+        if (!seen.has(key) && drivable.includes(campus.ground[y + dy]?.[x + dx] ?? '')) {
+          seen.add(key);
+          queue.push([x + dx, y + dy]);
+        }
+      }
+    }
+    for (const l of PARKING_LOTS) expect(seen.has(`${l.x0 + 1},${l.y0 + 1}`), l.name).toBe(true);
+  });
+
+  it('roads do not run through buildings', () => {
+    for (const r of ROADS) {
+      for (let y = r.y0; y < r.y1; y++) {
+        for (let x = r.x0; x < r.x1; x++) {
+          for (const b of BUILDINGS) {
+            expect(x + 1 <= b.x0 || x >= b.x0 + b.w || y + 1 <= b.y0 || y >= b.y0 + b.d, `${b.id} at ${x},${y}`).toBe(true);
+          }
+        }
+      }
+    }
+  });
+
+  it('buses stay on roads', () => {
+    for (const route of BUS_ROUTES) {
+      route.forEach((a, i) => {
+        const b = route[(i + 1) % route.length];
+        for (let t = 0; t <= 1; t += 0.02) {
+          const g = campus.ground[Math.floor(a.y + (b.y - a.y) * t)][Math.floor(a.x + (b.x - a.x) * t)];
+          expect(drivable).toContain(g);
+        }
+      });
+    }
+  });
+
+  it('NPCs stand and walk only in open space, on every map', () => {
+    for (const id of MAP_IDS) {
+      const map = buildMap(id);
+      for (const g of npcsFor(map)) {
+        for (const n of g.members) {
+          expect(free(map, n.x, n.y), `${id} ${n.name} at ${n.x},${n.y}`).toBe(true);
+          const r = n.route ?? [];
+          for (let i = 0; i + 1 < r.length; i++) {
+            for (let t = 0; t <= 1; t += 0.02) {
+              const x = r[i].x + (r[i + 1].x - r[i].x) * t;
+              const y = r[i].y + (r[i + 1].y - r[i].y) * t;
+              expect(free(map, x, y), `${n.name} route at ${x.toFixed(1)},${y.toFixed(1)}`).toBe(true);
+            }
+          }
+        }
+      }
+    }
   });
 });

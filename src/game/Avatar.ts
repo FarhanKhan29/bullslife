@@ -130,6 +130,11 @@ export class Avatar extends Phaser.GameObjects.Container {
     }
   }
 
+  /** Marks this avatar as an NPC: light-blue name tag so it never looks like a real player. */
+  markNpc() {
+    this.nameTag.setColor('#9fe0ff');
+  }
+
   setPose(p: Pose) {
     this.pose = p;
   }

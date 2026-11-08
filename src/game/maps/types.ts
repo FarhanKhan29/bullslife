@@ -23,7 +23,9 @@ export type Ground =
   | 'concrete'
   | 'stage'
   | 'darkwood'
-  | 'asphalt';
+  | 'asphalt'
+  | 'road'
+  | 'crosswalk';
 
 /** Things you can hold (eat & drink, sports balls, books). */
 export type ItemId = 'coffee' | 'tea' | 'pizza' | 'burger' | 'salad' | 'sandwich' | 'soda' | 'chips' | 'icecream' | 'book' | 'basketball' | 'football' | 'noodles' | 'wings' | 'ubtee' | 'notebook' | 'burrito' | 'rice' | 'bagel';
