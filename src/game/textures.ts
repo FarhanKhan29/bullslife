@@ -8,7 +8,7 @@ import * as art from './art';
 import * as fur from './furniture';
 import type { ArtTexture } from './art';
 import { BUILDINGS } from './maps/buildings';
-import { GARDEN, LAKE, PARKING_LOTS, PLAZA, parkingRows } from './maps/campus';
+import { GARDEN, LAKE, PARKING_LOTS, PLAZA, ROADS, parkingRows } from './maps/campus';
 import type { FloorDecor, Ground, InteriorStyle, MapDef, WallItem } from './maps/types';
 import { shade } from '../character/avatarRenderer';
 
@@ -143,6 +143,11 @@ export function registerAllTextures(scene: Phaser.Scene) {
   r('confetti', art.confettiPiece());
   r('leaf', art.leaf());
   r('goose', art.goose());
+  r('bus_x_f', art.stampedeBus(true, true));
+  r('bus_x_r', art.stampedeBus(true, false));
+  r('bus_y_f', art.stampedeBus(false, true));
+  r('bus_y_r', art.stampedeBus(false, false));
+  r('bus_stop', art.busStop());
   ['#d94b4b', '#005bbb', '#e9e6df', '#2b2f38', '#9aa3ad', '#f2a93b'].forEach((c, i) => r('car_' + i, art.car(c)));
   PARKING_LOTS.forEach((l, i) => r('sign_park_' + i, art.signPost(['P  ' + l.name], '#1f5fbf')));
   r('squirrel', art.squirrel());
@@ -248,6 +253,7 @@ export function renderGround(map: MapDef): GroundChunk[] {
   if (map.id === 'campus') {
     drawLake(ctx, P);
     drawParkingLines(ctx, P);
+    drawRoadMarkings(ctx, P, map);
   }
   if (map.interior) {
     for (const d of map.interior.floorDecor ?? []) drawFloorDecor(ctx, P, d);
@@ -311,6 +317,13 @@ function drawTile(ctx: CanvasRenderingContext2D, P: Proj, map: MapDef, x: number
     }
     case 'garden':
       art.quad(ctx, pts, '#8fd47a', '#8fd47a', 0.6);
+      break;
+    case 'road':
+      art.quad(ctx, pts, '#4b4e55', '#4b4e55', 0.6);
+      break;
+    case 'crosswalk':
+      art.quad(ctx, pts, '#4b4e55', '#4b4e55', 0.6);
+      for (let i = 0; i < 3; i++) art.quad(ctx, [P(x + 0.08 + i / 3, y + 0.1), P(x + 0.26 + i / 3, y + 0.1), P(x + 0.26 + i / 3, y + 0.9), P(x + 0.08 + i / 3, y + 0.9)], '#eceae3');
       break;
     case 'asphalt':
       art.quad(ctx, pts, alt ? '#62666e' : '#5d6169', '#585c63', 0.5);
@@ -392,6 +405,48 @@ function drawTile(ctx: CanvasRenderingContext2D, P: Proj, map: MapDef, x: number
       art.quad(ctx, pts, '#4b5563', '#2b313a', 1);
       break;
   }
+}
+
+/** Curbs along the road edges, and dashed yellow centre lines that stop at junctions. */
+function drawRoadMarkings(ctx: CanvasRenderingContext2D, P: Proj, map: MapDef) {
+  const isRoad = (x: number, y: number) => {
+    const g = map.ground[y]?.[x];
+    return g === 'road' || g === 'crosswalk' || g === 'asphalt';
+  };
+  ctx.strokeStyle = '#a7a39a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let y = 0; y < map.h; y++) {
+    for (let x = 0; x < map.w; x++) {
+      if (map.ground[y][x] !== 'road') continue;
+      for (const [dx, dy, a, b] of SIDES) {
+        if (isRoad(x + dx, y + dy) || !map.ground[y + dy]?.[x + dx]) continue;
+        ctx.moveTo(...P(x + a[0], y + a[1]));
+        ctx.lineTo(...P(x + b[0], y + b[1]));
+      }
+    }
+  }
+  ctx.stroke();
+  const inJunction = (r: (typeof ROADS)[number], px: number, py: number) =>
+    ROADS.some((o) => o !== r && px > o.x0 - 0.2 && px < o.x1 + 0.2 && py > o.y0 - 0.2 && py < o.y1 + 0.2);
+  ctx.strokeStyle = '#e8bd3a';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for (const r of ROADS) {
+    const alongX = r.x1 - r.x0 > r.y1 - r.y0;
+    const len = alongX ? r.x1 - r.x0 : r.y1 - r.y0;
+    if (len < 4) continue;
+    for (let t = 0.5; t + 0.7 < len; t += 1.4) {
+      const ax = alongX ? r.x0 + t : (r.x0 + r.x1) / 2;
+      const ay = alongX ? (r.y0 + r.y1) / 2 : r.y0 + t;
+      const bx = alongX ? ax + 0.7 : ax;
+      const by = alongX ? ay : ay + 0.7;
+      if (inJunction(r, ax, ay) || inJunction(r, bx, by)) continue;
+      ctx.moveTo(...P(ax, ay));
+      ctx.lineTo(...P(bx, by));
+    }
+  }
+  ctx.stroke();
 }
 
 /** White stall lines for each parking lot. */

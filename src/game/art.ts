@@ -694,6 +694,106 @@ export function goose(): ArtTexture {
   });
 }
 
+/**
+ * UB Stampede bus. `alongX`: the long side runs along grid x (otherwise grid y).
+ * `front`: the end facing the camera is the windshield end (otherwise the rear).
+ */
+export function stampedeBus(alongX: boolean, front: boolean): ArtTexture {
+  const L = 5;
+  const W = 1.1;
+  const H = 40;
+  return makeArt(250, 190, 125, 118, (ctx) => {
+    const P = projector(125, 118);
+    // long side and camera-facing end, as (along, height) mappers
+    const side = (u: number, z: number): [number, number] => (alongX ? P(-L / 2 + u, W / 2, z) : P(W / 2, -L / 2 + u, z));
+    const end = (s: number, z: number): [number, number] => (alongX ? P(L / 2, -W / 2 + s, z) : P(-W / 2 + s, L / 2, z));
+    const skew = alongX ? 0.5 : -0.5;
+    const wrap = (at: [number, number], text: string, size: number, color: string) => {
+      ctx.save();
+      ctx.translate(at[0], at[1]);
+      ctx.transform(1, skew, 0, 1, 0, 0);
+      ctx.fillStyle = color;
+      ctx.font = `bold ${size}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+    };
+    const G = (a: number, b: number): [number, number] => (alongX ? P(a, b, 0) : P(b, a, 0));
+    quad(ctx, [G(-L / 2 - 0.1, -W / 2 - 0.1), G(L / 2 + 0.1, -W / 2 - 0.1), G(L / 2 + 0.1, W / 2 + 0.15), G(-L / 2 - 0.1, W / 2 + 0.15)], 'rgba(0,0,0,0.2)');
+    // u=0 is the far end; `nose` converts "distance from the nose" into u
+    const nose = (d: number) => (front ? L - d : d);
+    const g = ctx.createLinearGradient(...side(nose(0), 20), ...side(nose(L), 20));
+    g.addColorStop(0, '#0d4fc0');
+    g.addColorStop(0.3, '#1b74d6');
+    g.addColorStop(0.62, '#1ea7b8');
+    g.addColorStop(1, '#67c23a');
+    quad(ctx, [side(0, 4), side(L, 4), side(L, H), side(0, H)], g as unknown as string, '#0a2c63', 0.8);
+    // sunrise swoosh and mountain band from the real wrap
+    const sun = (d: number, z: number) => side(nose(d), z);
+    quad(ctx, [sun(1.5, H), sun(3.1, H), sun(2.7, 18), sun(2.05, 14)], '#f7b733');
+    quad(ctx, [sun(2.5, H), sun(3.1, H), sun(2.75, 22), sun(2.4, 22)], '#ef7f3a');
+    for (const [a, b, c, col] of [[0.7, 1.5, 2.2, '#0f5fb5'], [1.9, 2.8, 3.5, '#12709e'], [3.1, 3.9, 4.7, '#2a9a78']] as [number, number, number, string][]) {
+      quad(ctx, [sun(a, 7), sun(b, 21), sun(c, 7)], col);
+    }
+    quad(ctx, [sun(0.2, 4), sun(L - 0.1, 4), sun(L - 0.1, 8), sun(0.2, 8)], '#c8d944');
+    // white column motif near the rear
+    for (const d of [4.15, 4.35, 4.55]) quad(ctx, [sun(d, 8), sun(d + 0.09, 8), sun(d + 0.09, 25), sun(d, 25)], 'rgba(235,245,250,0.8)');
+    quad(ctx, [sun(4.08, 25), sun(4.7, 25), sun(4.7, 27), sun(4.08, 27)], 'rgba(235,245,250,0.8)');
+    // window band
+    quad(ctx, [side(0.25, 28), side(L - 0.25, 28), side(L - 0.25, 37), side(0.25, 37)], '#21384f', '#0e1b28', 0.6);
+    for (let u = 0.25; u < L - 0.3; u += 0.62) quad(ctx, [side(u, 28), side(u + 0.03, 28), side(u + 0.03, 37), side(u, 37)], '#0e1b28');
+    wrap(side(nose(2.05), 16), 'UB STAMPEDE', 15, '#ffffff');
+    // wheels
+    for (const d of [0.95, L - 1.05]) {
+      const [wx, wy] = side(d, 5);
+      ellipse(ctx, wx, wy, 8.5, 9.5, '#16181c', '#000', 0.6);
+      ellipse(ctx, wx, wy, 4, 4.6, '#c9ccd1');
+    }
+    // camera-facing end
+    quad(ctx, [end(0, 4), end(W, 4), end(W, H), end(0, H)], '#0d4fc0', '#0a2c63', 0.8);
+    if (front) {
+      quad(ctx, [end(0.08, 15), end(W - 0.08, 15), end(W - 0.08, 33), end(0.08, 33)], '#2b4a63', '#0e1b28', 0.8);
+      quad(ctx, [end(0.1, 34), end(W - 0.1, 34), end(W - 0.1, 39), end(0.1, 39)], '#14161a');
+      ctx.save();
+      const [tx, ty] = end(W / 2, 36.5);
+      ctx.translate(tx, ty);
+      ctx.transform(1, -skew, 0, 1, 0, 0);
+      ctx.fillStyle = '#ffb63b';
+      ctx.font = 'bold 4.5px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('NORTH TO SOUTH', 0, 0);
+      ctx.restore();
+      for (const s of [0.12, W - 0.24]) quad(ctx, [end(s, 8), end(s + 0.12, 8), end(s + 0.12, 11), end(s, 11)], '#fff2b0');
+    } else {
+      quad(ctx, [end(0.15, 26), end(W - 0.15, 26), end(W - 0.15, 36), end(0.15, 36)], '#21384f');
+      for (const s of [0.1, W - 0.26]) quad(ctx, [end(s, 11), end(s + 0.16, 11), end(s + 0.16, 16), end(s, 16)], '#e23b3b');
+    }
+    // roof with battery packs (it's an electric bus)
+    const R = (x: number, y: number): [number, number] => (alongX ? P(x, y, H) : P(y, x, H));
+    quad(ctx, [R(-L / 2, -W / 2), R(L / 2, -W / 2), R(L / 2, W / 2), R(-L / 2, W / 2)], '#1a62c9', '#0a2c63', 0.8);
+    if (alongX) isoBox(ctx, P, -1.5, -0.35, 3, 0.7, H, 5, '#2a6fd0');
+    else isoBox(ctx, P, -0.35, -1.5, 0.7, 3, H, 5, '#2a6fd0');
+  });
+}
+
+/** Bus shelter with a Stampede sign. */
+export function busStop(): ArtTexture {
+  return makeArt(110, 90, 55, 66, (ctx) => {
+    const P = projector(55, 64);
+    ellipse(ctx, 55, 66, 40, 10, 'rgba(0,0,0,0.14)');
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    quad(ctx, [P(-0.8, -0.15, 0), P(0.8, -0.15, 0), P(0.8, -0.15, 34), P(-0.8, -0.15, 34)], '#bfe0f0');
+    ctx.restore();
+    for (const x of [-0.8, 0.75]) isoBox(ctx, P, x, -0.2, 0.05, 0.05, 0, 34, '#3b3f46');
+    isoBox(ctx, P, -0.9, -0.3, 1.8, 0.6, 34, 3, '#005bbb', { top: '#1f6cc6' });
+    isoBox(ctx, P, -0.5, -0.12, 1, 0.2, 10, 2, '#b07a4a');
+    quad(ctx, [P(0.95, 0, 20), P(1.25, 0, 20), P(1.25, 0, 46), P(0.95, 0, 46)], '#005bbb', '#003f85', 0.6);
+  });
+}
+
 /** A parked car, nose pointing along grid y. */
 export function car(color: string): ArtTexture {
   return makeArt(90, 66, 45, 44, (ctx) => {

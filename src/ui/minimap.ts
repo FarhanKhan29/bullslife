@@ -14,6 +14,8 @@ const COLORS: Partial<Record<Ground, string>> = {
   garden: '#9fdc88',
   path: '#d6cdbf',
   asphalt: '#6b7078',
+  road: '#55585f',
+  crosswalk: '#55585f',
   plaza: '#d6ae88',
   water: '#4fa3d6',
   booth: '#f7c45c',
