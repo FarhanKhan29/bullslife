@@ -16,8 +16,24 @@ export const ITEMS: Record<ItemId, string> = {
   football: '🏈',
   noodles: '🍜',
   wings: '🍗',
+  ubtee: '👕',
+  notebook: '📓',
+  burrito: '🌯',
+  rice: '🍚',
+  bagel: '🥯',
 };
 export const ITEM_IDS = Object.keys(ITEMS) as ItemId[];
+
+export const ITEM_NAMES: Record<ItemId, string> = {
+  coffee: 'Coffee', tea: 'Tea', pizza: 'Pizza', burger: 'Burger', salad: 'Salad',
+  sandwich: 'Sandwich', soda: 'Soda', chips: 'Chips', icecream: 'Ice cream',
+  book: 'Book', basketball: 'Basketball', football: 'Football', noodles: 'Noodles',
+  wings: 'Chicken', ubtee: 'UB T-shirt', notebook: 'Notebook', burrito: 'Burrito',
+  rice: 'Rice bowl', bagel: 'Bagel',
+};
+
+const NON_FOOD = new Set<ItemId>(['book', 'basketball', 'football', 'ubtee', 'notebook']);
+export const isFood = (item: ItemId) => !NON_FOOD.has(item);
 
 const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 
@@ -63,8 +79,6 @@ export function useFlavor(use: UseKind, custom?: string): string {
       return '🎨 You painted a little sunset over Lake LaSalle.';
     case 'drums':
       return '🥁 Ba-dum-tss!';
-    case 'shop':
-      return pick(['🛍️ You bought a blue UB hoodie.', '🛍️ You picked up a UB mug and some pens.', '🛍️ You grabbed a new notebook for class.']);
     case 'info':
       return pick(UB_FACTS);
     default:

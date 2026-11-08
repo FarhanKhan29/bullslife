@@ -32,49 +32,46 @@ export function davisInterior(): MapDef {
   r.add('printer3d', 11.4, 4.4, { r: 0.45, act: { kind: 'use', use: 'printer', label: 'Start a 3D print' } });
   r.add('printer3d', 12.8, 4.4, { r: 0.45, act: { kind: 'use', use: 'printer', label: 'Start a 3D print' } });
   r.board('davis-board', 12.4, 7.4);
+  r.partition(0, 8.8, 5.7, true).partition(9.4, 8.8, 6.6, true);
+  r.floor(0, 9, 16, 13, 'tile');
+  r.info('bansal-atrium', 7.8, 10.3, 'Bansal Atrium', 'The public atrium leads to the engineering labs.');
   // atrium lounge
   r.seat('beanbag_orange', 2, 10.4, 'front');
   r.seat('beanbag_blue', 3.4, 11.2, 'front');
   r.seat('beanbag_purple', 12.6, 10.6, 'front');
-  r.add('vend_a', 15.3, 10.4, { rect: [1, 0.8], act: { kind: 'eat', item: 'chips', label: 'Buy a snack', text: 'Hackathon fuel acquired. 🍟' } });
+  r.add('vend_a', 15.3, 10.4, { rect: [1, 0.8], act: { kind: 'checkout', shop: 'snacks', label: 'Buy a snack' } });
   return r.done();
 }
 
-/** Bell Hall — machine shop: lathes, workbench, lockers. */
+/** Bell Hall: industrial and systems engineering classrooms and research. */
 export function bellInterior(): MapDef {
-  const r = new Room('bell', 15, 12, 'concrete', {
-    ...LAB,
-    wallHeight: 130,
+  const r = new Room('bell', 16, 12, 'lino', {
+    ...LAB, wallHeight: 125,
     items: [
-      { wall: 'n', u: 1, w: 6, z: 70, h: 22, kind: 'sign', color: '#f2c94c', text: ['⚠ SAFETY GLASSES REQUIRED'] },
-      { wall: 'n', u: 8, w: 6, z: 20, h: 70, kind: 'window' },
-      { wall: 'w', u: 1, w: 5, z: 6, h: 60, kind: 'lockers' },
-      { wall: 'w', u: 7, w: 3, z: 40, h: 30, kind: 'board' },
+      { wall: 'n', u: 1, w: 13, z: 85, h: 22, kind: 'sign', color: '#345b78', text: ['INDUSTRIAL AND SYSTEMS ENGINEERING'] },
+      { wall: 'w', u: 2, w: 5, z: 35, h: 55, kind: 'window' },
     ],
   });
-  r.add('desk_lamp', 12.4, 9.4, { rect: [1.4, 0.7] }).stamp(12.4, 10.3, 'Get your shop safety sign-off', 1.2);
-  for (const [x, y] of [
-    [3.2, 2.6],
-    [3.2, 5],
-    [7.6, 2.6],
-  ])
-    r.add('lathe', x, y, { rect: [1.8, 0.7], act: { kind: 'use', use: 'info', label: 'Run the lathe', text: '⚙️ Whirrr… you turned a perfect aluminium part.' } });
-  r.add('lab_micro', 7.6, 5.2, { rect: [2, 0.8], act: { kind: 'use', use: 'microscope', label: 'Inspect a part' } });
-  r.add('robot_arm', 12, 4, { r: 0.5, act: { kind: 'use', use: 'robot', label: 'Program the welding robot' } });
-  r.add('lockers', 3.4, 9.6, { rect: [2, 0.4] });
-  r.seat('stool_red', 6.6, 8.6, 'side');
-  r.seat('stool_red', 8, 8.6, 'side', true);
+  r.partition(8.3, 0, 7.8, false);
+  r.board('bell-board', 4, 2);
+  for (const x of [2.3, 5.8]) for (const y of [4.6, 7.3]) {
+    r.add('study_table', x, y, { rect: [2, 0.9] });
+    r.chairsNS(x, y);
+  }
+  r.add('lab_cs', 12, 3.5, { rect: [2, 0.8], act: { kind: 'use', use: 'computer', label: 'Review ergonomics data' } });
+  r.add('desk_lamp', 12.5, 8.2, { rect: [1.4, 0.7] }).stamp(12.5, 9.2, 'Check in at the engineering lab', 1.2);
+  r.info('ergonomics', 12, 5, 'Physical ergonomics research', 'Bell Hall houses Industrial and Systems Engineering research and teaching.');
   return r.done();
 }
 
-/** Furnas Hall — engineering design studio: drafting tables and 3D printers. */
+/** Furnas Hall — Materials Characterization Laboratory and engineering workstations. */
 export function furnasInterior(): MapDef {
   const r = new Room('furnas', 14, 12, 'lino', {
     ...LAB,
     wallHeight: 120,
     items: [
       { wall: 'n', u: 1, w: 5, z: 40, h: 50, kind: 'whiteboard' },
-      { wall: 'n', u: 7, w: 6, z: 70, h: 20, kind: 'sign', color: '#9a4a36', text: ['DESIGN STUDIO'] },
+      { wall: 'n', u: 7, w: 6, z: 70, h: 20, kind: 'sign', color: '#9a4a36', text: ['110 FURNAS · MATERIALS LAB'] },
       { wall: 'w', u: 1, w: 3, z: 40, h: 40, kind: 'poster', color: '#3e7aa8', text: ['CAD', 'NIGHT'] },
       { wall: 'w', u: 6, w: 4, z: 30, h: 50, kind: 'window' },
     ],
@@ -88,9 +85,8 @@ export function furnasInterior(): MapDef {
     r.add('drafting', x, y, { rect: [1.2, 0.9], act: { kind: 'use', use: 'info', label: 'Sketch a design', text: '📐 You sketched a bridge. It might even stand up!' } });
     r.seat('stool_blue', x, y + 0.9, 'back');
   }
-  r.add('printer3d', 10, 2.6, { r: 0.45, act: { kind: 'use', use: 'printer', label: 'Start a 3D print' } });
-  r.stamp(10, 3.6, 'Pick up your 3D print', 1.2);
-  r.add('printer3d', 11.6, 2.6, { r: 0.45, act: { kind: 'use', use: 'printer', label: 'Start a 3D print' } });
+  r.add('lab_micro', 10.6, 2.8, { rect: [2, 0.8], act: { kind: 'use', use: 'microscope', label: 'Inspect a materials sample' } });
+  r.stamp(10.6, 4, 'Check in at the Materials Characterization Lab', 1.2);
   r.add('desk_pc', 10.8, 6.4, { rect: [1.4, 0.7], act: { kind: 'use', use: 'computer', label: 'Open the CAD model' } });
   r.seat('seatn_blue', 10.8, 7.15, 'back');
   r.add('plant', 13.2, 11.2, { r: 0.3 });
@@ -111,6 +107,7 @@ export function ketterInterior(): MapDef {
     ],
   });
   r.add('shake_table', 7, 4.6, { rect: [3, 3], act: { kind: 'use', use: 'shake', label: 'Start an earthquake test' }, reach: 2.4 });
+  r.add('shake_table', 3, 3, { rect: [2.6, 2.6], act: { kind: 'use', use: 'shake', label: 'Start the second shake table' }, reach: 2.1 });
   r.stamp(7, 6.9, 'Read the shake-table safety sign', 1.1);
   r.add('lab_micro', 12.6, 3, { rect: [2, 0.8], act: { kind: 'use', use: 'microscope', label: 'Inspect a concrete sample' } });
   r.add('desk_pc', 12.6, 6.2, { rect: [1.4, 0.7], act: { kind: 'use', use: 'computer', label: 'Check the sensor data' } });

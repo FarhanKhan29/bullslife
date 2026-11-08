@@ -78,7 +78,7 @@ async function startPlaying() {
   session.playing = true;
   const net = getNet();
   net.updateMeta({ look: session.appearance });
-  void net.connect(session.room);
+  void net.connect(session.room, session.friendsInvite);
   world().scene.restart({ mode: 'play', map: 'campus' } satisfies WorldData);
   hud = createHud({
     friends: openFriends,

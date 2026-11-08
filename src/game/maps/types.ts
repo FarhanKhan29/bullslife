@@ -1,4 +1,5 @@
 import type { Facing } from '../../character/avatarRenderer';
+import type { ShopId } from '../shops';
 import type { Collider } from '../iso';
 
 /** 'campus' or a building id (each building's interior is its own map). */
@@ -24,7 +25,7 @@ export type Ground =
   | 'darkwood';
 
 /** Things you can hold (eat & drink, sports balls, books). */
-export type ItemId = 'coffee' | 'tea' | 'pizza' | 'burger' | 'salad' | 'sandwich' | 'soda' | 'chips' | 'icecream' | 'book' | 'basketball' | 'football' | 'noodles' | 'wings';
+export type ItemId = 'coffee' | 'tea' | 'pizza' | 'burger' | 'salad' | 'sandwich' | 'soda' | 'chips' | 'icecream' | 'book' | 'basketball' | 'football' | 'noodles' | 'wings' | 'ubtee' | 'notebook' | 'burrito' | 'rice' | 'bagel';
 
 export type UseKind =
   | 'book'
@@ -43,14 +44,14 @@ export type UseKind =
   | 'robot'
   | 'easel'
   | 'drums'
-  | 'shop'
   | 'info';
 
 /** What happens when you press E next to a prop. */
 export type PropAct =
   | { kind: 'sit'; facing: Facing; flip?: boolean }
   | { kind: 'lie' }
-  | { kind: 'eat'; item: ItemId; label: string; text: string }
+  | { kind: 'take'; item: ItemId; label: string; text?: string; buffet?: boolean }
+  | { kind: 'checkout'; shop: ShopId; label: string }
   | { kind: 'use'; use: UseKind; label: string; text?: string; target?: { x: number; y: number }; board?: string };
 
 /** A drawable object placed in the world. */
@@ -72,7 +73,8 @@ export interface Prop {
 export type InteractAction =
   | { type: 'stamp'; stamp: string }
   | { type: 'info'; text: string }
-  | { type: 'photo' };
+  | { type: 'photo' }
+  | { type: 'enter'; to: MapId; spawn?: { x: number; y: number } };
 
 export interface Interactable {
   id: string;

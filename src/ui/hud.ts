@@ -5,6 +5,8 @@ import { bus, getNet, session } from '../core/session';
 import { getSettings, settingsEvents, updateSettings } from '../core/settings';
 import { EMOTES } from '../game/Avatar';
 import type { NetStatus } from '../net/types';
+import { openCheckout } from './checkout';
+import { createInventory } from './inventory';
 import { createChat } from './chat';
 import { h, toast, uiRoot } from './dom';
 import { askText, openInfo, openPassport } from './panels';
@@ -48,7 +50,7 @@ export function createHud(actions: { friends: () => void; character: () => void;
     { class: 'hud-card controls-guide' },
     h('h4', {}, 'How to play', h('button', { 'aria-label': 'Hide hints', onclick: () => updateSettings({ showHints: false }), text: '×' })),
     h('div', {}, h('span', { class: 'k', text: 'WASD' }), ' walk  ', h('span', { class: 'k', text: 'Shift' }), ' run'),
-    h('div', {}, h('span', { class: 'k', text: 'E' }), ' sit, eat, use things, enter'),
+    h('div', {}, h('span', { class: 'k', text: 'E' }), ' interact  ', h('span', { class: 'k', text: 'F' }), ' eat  ', h('span', { class: 'k', text: 'G' }), ' drop'),
     h('div', {}, h('span', { class: 'k', text: 'Enter' }), ' chat  ', h('span', { class: 'k', text: '1-5' }), ' emotes  ', h('span', { class: 'k', text: 'M' }), ' map'),
     h('div', { style: 'opacity:.8' }, `🎯 Every building is open — collect all ${STAMP_TOTAL} passport stamps!`),
   );
@@ -57,7 +59,8 @@ export function createHud(actions: { friends: () => void; character: () => void;
 
   const chat = createChat();
   const minimap = createMinimap();
-  const root = h('div', { class: 'hud' }, top, minimap.el, guide, prompt, emotes, chat.el);
+  const inventory = createInventory();
+  const root = h('div', { class: 'hud' }, top, minimap.el, guide, prompt, emotes, inventory.el, chat.el);
   uiRoot().append(root);
 
   const setStatus = (s: NetStatus) => {
@@ -67,7 +70,8 @@ export function createHud(actions: { friends: () => void; character: () => void;
     statusPill.title = local ? 'Supabase not configured — multiplayer works between tabs on this device only.' : '';
   };
   setStatus(net.status);
-  roomLabel.textContent = `· room ${session.room}`;
+  const updateRoom = () => (roomLabel.textContent = session.friendsInvite ? '· Friends room' : `· room ${session.room}`);
+  updateRoom();
   const updateCount = () => (count.textContent = String(net.onlineCount()));
   updateCount();
 
@@ -79,10 +83,8 @@ export function createHud(actions: { friends: () => void; character: () => void;
       if (s === 'online' && lastStatus === 'error') toast('Reconnected!', 'success');
       lastStatus = s;
     }),
-    net.on('players', () => {
-      updateCount();
-      roomLabel.textContent = `· room ${session.room}`;
-    }),
+    net.on('players', updateCount),
+    bus.on('roomChanged', updateRoom),
     bus.on('prompt', (text) => {
       if (!text) {
         prompt.style.display = 'none';
@@ -94,6 +96,7 @@ export function createHud(actions: { friends: () => void; character: () => void;
     }),
     bus.on('location', (_m, name) => (locName.textContent = name)),
     bus.on('toast', (t, k) => toast(t, k)),
+    bus.on('checkout', openCheckout),
     bus.on('info', (t) => openInfo(t)),
     bus.on('askText', (title, initial, done) => askText(title, initial, done)),
     bus.on('openPanel', (p) => p === 'passport' && setTimeout(openPassport, 700)),
@@ -106,6 +109,7 @@ export function createHud(actions: { friends: () => void; character: () => void;
       offs.forEach((o) => o());
       clearInterval(refreshStamps);
       chat.destroy();
+      inventory.destroy();
       minimap.destroy();
       root.remove();
     },

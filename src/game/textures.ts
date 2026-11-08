@@ -159,6 +159,7 @@ export interface GroundChunk {
   /** World position of the chunk's top-left corner. */
   x: number;
   y: number;
+  scale: number;
 }
 
 const SIDES: [number, number, number[], number[]][] = [
@@ -174,9 +175,12 @@ export function renderGround(map: MapDef): GroundChunk[] {
   const width = (map.w + map.h) * HW + 16;
   const height = (map.w + map.h) * HH + top + EDGE + 8;
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  // Keep the larger campus within mobile canvas and GPU texture limits.
+  const resolution = map.id === 'campus' ? 0.5 : 1;
+  canvas.width = Math.ceil(width * resolution);
+  canvas.height = Math.ceil(height * resolution);
   const ctx = canvas.getContext('2d')!;
+  ctx.scale(resolution, resolution);
   ctx.lineJoin = 'round';
   const P = art.projector(ox, top);
   const rand = art.rng(map.id === 'campus' ? 42 : 7);
@@ -258,18 +262,19 @@ export function renderGround(map: MapDef): GroundChunk[] {
 
   // split into chunks that fit in GPU textures
   const chunks: GroundChunk[] = [];
-  for (let cx = 0; cx < width; cx += CHUNK) {
-    const w = Math.min(CHUNK, width - cx);
-    if (w === width) {
-      chunks.push({ canvas, x: -ox, y: -top });
+  for (let cx = 0; cx < canvas.width; cx += CHUNK) {
+    const w = Math.min(CHUNK, canvas.width - cx);
+    if (w === canvas.width) {
+      chunks.push({ canvas, x: -ox, y: -top, scale: 1 / resolution });
       break;
     }
     const c = document.createElement('canvas');
     c.width = w;
-    c.height = height;
-    c.getContext('2d')!.drawImage(canvas, cx, 0, w, height, 0, 0, w, height);
-    chunks.push({ canvas: c, x: -ox + cx, y: -top });
+    c.height = canvas.height;
+    c.getContext('2d')!.drawImage(canvas, cx, 0, w, c.height, 0, 0, w, c.height);
+    chunks.push({ canvas: c, x: -ox + cx / resolution, y: -top, scale: 1 / resolution });
   }
+  if (chunks.length > 1) canvas.width = canvas.height = 0;
   return chunks;
 }
 

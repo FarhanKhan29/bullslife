@@ -5,6 +5,7 @@ import type { MapId } from '../game/maps/types';
 /** Data every player shares through Presence (low-frequency, "who is here"). */
 export interface PlayerMeta {
   id: string;
+  chatKey?: string; // public key bound to the guest id when private chat is available
   look: Appearance; // includes the nickname
   map: MapId;
   plate: 'A' | 'B' | null; // co-op pressure plate the player is standing on

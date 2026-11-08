@@ -16,20 +16,21 @@ import { getSettings, settingsEvents } from '../core/settings';
 import { isBlocked, isMuted } from '../social/moderation';
 import type { FxKind } from '../net/multiplayer';
 import { Avatar, type Pose } from './Avatar';
-import { depthOf, isInFrontOf, isoToScreen, moveWithCollision, screenDirToGrid } from './iso';
-import { ITEMS, useFlavor } from './items';
+import { depthOf, hits, isInFrontOf, isoToScreen, moveWithCollision, screenDirToGrid } from './iso';
+import { inventory, type GroundItem } from './inventory';
+import { ITEM_NAMES, ITEMS, useFlavor } from './items';
 import { BUILDING_BY_ID } from './maps/buildings';
-import { COOP, LAKE } from './maps/campus';
+import { CAMPUS_SPAWN, COOP, LAKE, PLAZA } from './maps/campus';
 import { buildMap } from './maps/registry';
-import type { Interactable, ItemId, MapDef, MapId, Prop, PropAct, Trigger } from './maps/types';
+import type { Interactable, MapDef, MapId, Prop, PropAct, Trigger } from './maps/types';
 import { ORIGINS, registerAllTextures, renderGround } from './textures';
 import { worldState } from './worldState';
-import { appearanceKey } from '../character/appearance';
+import { appearanceKey, defaultAppearance } from '../character/appearance';
+import { isModalOpen } from '../ui/dom';
 
-const SPEED_PX = 160; // on-screen walking speed (px / second at zoom 1)
-const SPRINT = 1.75;
+const SPEED_PX = 120; // on-screen walking speed (px / second at zoom 1)
+const SPRINT = 1.35;
 const PLAYER_R = 0.28; // collision radius in tiles
-const ITEM_MS = 120_000; // how long you carry food / a ball
 
 const MAP_CACHE = new Map<MapId, MapDef>();
 function getMap(id: MapId): MapDef {
@@ -43,7 +44,7 @@ interface BuildingRef {
   depth: number;
 }
 
-type Target = { kind: 'interactable'; it: Interactable } | { kind: 'prop'; prop: Prop; act: PropAct };
+type Target = { kind: 'interactable'; it: Interactable } | { kind: 'prop'; prop: Prop; act: PropAct } | { kind: 'drop'; drop: GroundItem };
 
 export interface WorldData {
   map?: MapId;
@@ -77,7 +78,8 @@ export class WorldScene extends Phaser.Scene {
   private pose: Pose = 'stand';
   private standPos: { x: number; y: number } | null = null;
   private seatDepthBoost = 0;
-  private itemUntil = 0;
+  private diningAdmitted = false;
+  private groundItems = new Map<string, Phaser.GameObjects.Text>();
   private boardTexts = new Map<string, Phaser.GameObjects.Text>();
   private hoopScore = 0;
 
@@ -103,7 +105,10 @@ export class WorldScene extends Phaser.Scene {
     this.triggerCooldown = 600;
     this.pose = 'stand';
     this.standPos = null;
+    this.seatDepthBoost = 0;
     this.boardTexts = new Map();
+    this.diningAdmitted = false;
+    this.groundItems = new Map();
   }
 
   create() {
@@ -135,7 +140,7 @@ export class WorldScene extends Phaser.Scene {
 
   // ---------------------------------------------------------------- building the world
   private buildGround() {
-    renderGroundCached(this, this.map).forEach((c) => this.add.image(c.x, c.y, c.key).setOrigin(0, 0).setDepth(-100000));
+    renderGroundCached(this, this.map).forEach((c) => this.add.image(c.x, c.y, c.key).setOrigin(0, 0).setScale(c.scale).setDepth(-100000));
   }
 
   /** Depth for small things (avatars, props) taking big building footprints into account. */
@@ -179,6 +184,19 @@ export class WorldScene extends Phaser.Scene {
     }
     const high = getSettings().quality === 'high';
     for (const p of this.map.props.filter((p) => !p.footprint)) {
+      if (p.tex === 'waypoint') {
+        const point = isoToScreen(p.gx, p.gy);
+        this.add.ellipse(point.x, point.y, 25, 12, 0xf5bc35, 0.85).setDepth(this.resolveDepth(p.gx, p.gy));
+        this.add.text(point.x, point.y - 8, p.label ?? '', {
+          fontSize: '11px', backgroundColor: '#20344d', padding: { x: 5, y: 3 },
+        }).setOrigin(0.5, 1).setResolution(2).setDepth(900000);
+        continue;
+      }
+      if (p.tex === 'cashier') {
+        new Avatar(this, p.gx, p.gy, { ...defaultAppearance(), name: p.label ?? 'Cashier' }, false)
+          .setDepth(this.resolveDepth(p.gx, p.gy));
+        continue;
+      }
       if (!p.tex) continue; // invisible interaction point (e.g. bleacher seats)
       const o = ORIGINS.get(p.tex);
       if (!o) continue;
@@ -296,7 +314,7 @@ export class WorldScene extends Phaser.Scene {
         const g = this.map.ground[Math.floor(y)]?.[Math.floor(x)];
         if ((g === 'grass' || g === 'plaza') && !this.map.colliders.some((c) => c.kind === 'rect' && x > c.x0 - 1 && x < c.x1 + 1 && y > c.y0 - 1 && y < c.y1 + 1)) return { x, y };
       }
-      return { x: 44, y: 36 };
+      return CAMPUS_SPAWN;
     };
     let pos = pick();
     const s = isoToScreen(pos.x, pos.y);
@@ -357,16 +375,10 @@ export class WorldScene extends Phaser.Scene {
 
   private startAttract() {
     const cam = this.cameras.main;
-    const stops = [
-      { x: 44, y: 30 },
-      { x: 34, y: 28 },
-      { x: 35, y: 15 },
-      { x: 10, y: 45 },
-      { x: 52, y: 46 },
-      { x: 70, y: 50 },
-      { x: 66, y: 30 },
-      { x: 12, y: 6 },
-    ];
+    const stops = [PLAZA, ...['union', 'capen', 'governors', 'davis', 'ellicott', 'greiner', 'cfa', 'arena'].map((id) => {
+      const b = BUILDING_BY_ID.get(id)!;
+      return { x: b.x0 + b.w / 2, y: b.y0 + b.d / 2 };
+    })];
     let i = 0;
     const first = isoToScreen(stops[0].x, stops[0].y);
     cam.centerOn(first.x, first.y);
@@ -413,8 +425,12 @@ export class WorldScene extends Phaser.Scene {
       shift: k(K.SHIFT),
     };
     const onKey = (ev: KeyboardEvent) => {
-      if (isTyping() || ev.repeat) return;
-      if (ev.code === 'KeyE' || ev.code === 'Space') this.interact();
+      if (isTyping() || isModalOpen() || ev.repeat) return;
+      if (ev.code === 'KeyE' || (ev.code === 'Space' && !(ev.target instanceof HTMLButtonElement))) this.interact();
+      if (ev.code === 'KeyF') this.eatHeld();
+      if (ev.code === 'KeyG') this.dropHeld();
+      const slot = ['Digit6', 'Digit7', 'Digit8'].indexOf(ev.code);
+      if (slot >= 0) inventory.select(slot);
       const n = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].indexOf(ev.code);
       if (n >= 0) bus.emit('localEmote', n);
     };
@@ -425,8 +441,15 @@ export class WorldScene extends Phaser.Scene {
 
     const net = getNet();
     net.updateMeta({ map: this.mapId, plate: null });
-    this.sendMove();
+    this.syncInventory();
     this.unsubs.push(
+      bus.on('roomChanged', () => {
+        this.boardTexts.forEach((board) => board.setText('Write something!'));
+        this.diningAdmitted = false;
+      }),
+      inventory.on('change', () => this.syncInventory()),
+      bus.on('useItem', () => this.eatHeld()),
+      bus.on('dropItem', () => this.dropHeld()),
       bus.on('localChat', (text) => this.player?.showBubble(text)),
       bus.on('localEmote', (e) => {
         this.player?.showEmote(e);
@@ -481,13 +504,81 @@ export class WorldScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------- interactions
+  private syncInventory() {
+    this.player!.setItem(inventory.held);
+    const drops = inventory.dropsOn(this.mapId);
+    for (const [id, sprite] of this.groundItems) {
+      if (!drops.some((drop) => drop.id === id)) {
+        sprite.destroy();
+        this.groundItems.delete(id);
+      }
+    }
+    for (const drop of drops) {
+      const existing = this.groundItems.get(drop.id);
+      if (existing) {
+        existing.setText(ITEMS[drop.item]);
+        continue;
+      }
+      const pos = isoToScreen(drop.x, drop.y);
+      const sprite = this.add.text(pos.x, pos.y, ITEMS[drop.item], {
+        fontSize: '18px', backgroundColor: '#1b2433bb', padding: { x: 4, y: 2 },
+      }).setOrigin(0.5, 0.85).setResolution(2).setDepth(this.resolveDepth(drop.x, drop.y) + 0.5);
+      this.groundItems.set(drop.id, sprite);
+    }
+    this.sendMove();
+  }
+
+  private eatHeld() {
+    if (!this.player || this.transitioning || this.pose === 'lie' || isModalOpen()) return;
+    const item = inventory.eat();
+    if (!item) return;
+    this.player.showBite(item);
+    sfx('eat');
+    bus.emit('toast', `${ITEMS[item]} Enjoyed ${ITEM_NAMES[item].toLowerCase()}.`, 'success');
+  }
+
+  private dropHeld() {
+    const p = this.player;
+    if (!p || this.transitioning || !inventory.held || isModalOpen()) return;
+    if (this.pose !== 'stand') {
+      bus.emit('toast', 'Stand up before putting an item on the ground.', 'info');
+      return;
+    }
+    const drops = inventory.dropsOn(this.mapId);
+    const offsets = [[0, 0], [0.52, 0], [0, 0.52], [-0.52, 0], [0, -0.52], [0.52, -0.52], [-0.52, 0.52]];
+    for (const [dx, dy] of offsets) {
+      const x = p.gx + dx;
+      const y = p.gy + dy;
+      if (x < PLAYER_R || y < PLAYER_R || x > this.map.w - PLAYER_R || y > this.map.h - PLAYER_R ||
+          this.map.colliders.some((c) => hits(c, x, y, PLAYER_R)) ||
+          this.map.triggers.some((t) => x >= t.x0 && x <= t.x1 && y >= t.y0 && y <= t.y1) ||
+          drops.some((d) => Math.hypot(x - d.x, y - d.y) < 0.45)) continue;
+      if (inventory.drop(this.mapId, x, y)) {
+        sfx('click');
+        return;
+      }
+      break;
+    }
+    bus.emit('toast', 'No space to put this down. Try another spot or pick up an old item.', 'warn');
+  }
+
   private interact() {
     const p = this.player;
-    if (!p || this.transitioning) return;
+    if (!p || this.transitioning || isModalOpen()) return;
     if (this.pose !== 'stand') return this.standUp();
     const t = this.target;
     if (!t) return;
     if (t.kind === 'interactable') return this.useInteractable(t.it);
+    if (t.kind === 'drop') {
+      const result = inventory.pickUp(this.mapId, t.drop.id);
+      if (result) {
+        sfx('click');
+        bus.emit('toast', result.displaced
+          ? `Swapped ${ITEM_NAMES[result.displaced]} for ${ITEM_NAMES[result.item]}.`
+          : `Picked up ${ITEM_NAMES[result.item]}.`, 'success');
+      }
+      return;
+    }
     const act = t.act;
     const prop = t.prop;
     if (act.kind === 'sit' || act.kind === 'lie') {
@@ -510,12 +601,26 @@ export class WorldScene extends Phaser.Scene {
       this.sendMove();
       return;
     }
-    if (act.kind === 'eat') {
-      p.setItem(act.item);
-      this.itemUntil = Date.now() + ITEM_MS;
-      sfx('eat');
-      bus.emit('toast', act.text, 'success');
-      this.sendMove();
+    if (act.kind === 'take') {
+      if (act.buffet && !this.diningAdmitted) {
+        bus.emit('toast', 'Check in at the cashier by the entrance first.', 'warn');
+        return;
+      }
+      if (!inventory.take(act.item)) {
+        bus.emit('toast', 'Inventory full. Eat or drop an item to make room.', 'warn');
+        return;
+      }
+      sfx('click');
+      bus.emit('toast', act.text ?? `Took ${ITEM_NAMES[act.item]}. Press F to eat it.`, 'success');
+      return;
+    }
+    if (act.kind === 'checkout') {
+      const dining = act.shop === 'crossroads' || act.shop === 'governorsDining';
+      if (dining && this.diningAdmitted) {
+        bus.emit('toast', 'Your meal is paid for. Head to the food stations.', 'success');
+      } else {
+        bus.emit('checkout', act.shop, dining ? () => { this.diningAdmitted = true; } : undefined);
+      }
       return;
     }
     // use
@@ -547,9 +652,10 @@ export class WorldScene extends Phaser.Scene {
         break;
       }
       case 'book':
-        p.setItem('book');
-        this.itemUntil = Date.now() + ITEM_MS;
-        this.sendMove();
+        if (!inventory.slots.includes('book') && !inventory.take('book')) {
+          bus.emit('toast', 'Inventory full. Drop an item to borrow a book.', 'warn');
+          return;
+        }
         bus.emit('info', '📖 ' + useFlavor('book', act.text));
         break;
       case 'info':
@@ -592,6 +698,8 @@ export class WorldScene extends Phaser.Scene {
       bus.emit('info', a.text);
     } else if (a.type === 'photo') {
       this.takePhoto();
+    } else if (a.type === 'enter') {
+      this.changeMap(a.to, a.spawn);
     }
   }
 
@@ -710,7 +818,7 @@ export class WorldScene extends Phaser.Scene {
     const p = this.player!;
     let vx = 0;
     let vy = 0;
-    if (!isTyping() && !this.transitioning) {
+    if (!isTyping() && !isModalOpen() && !this.transitioning) {
       const k = this.keys;
       if (k.left.isDown || k.left2.isDown) vx -= 1;
       if (k.right.isDown || k.right2.isDown) vx += 1;
@@ -738,10 +846,6 @@ export class WorldScene extends Phaser.Scene {
         p.flip = vx < 0;
       } else p.facing = vy > 0 ? 'front' : 'back';
       if (!moving) moving = len > 0.01; // keep walking animation against walls
-    }
-    if (p.item && Date.now() > this.itemUntil) {
-      p.setItem(null);
-      this.sendMove();
     }
     p.moving = moving;
     p.tick(dt * 1000);
@@ -791,7 +895,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private checkTriggers() {
-    if (this.transitioning) return;
+    if (this.transitioning || isModalOpen()) return;
     const p = this.player!;
     const hit = this.map.triggers.find((t) => p.gx >= t.x0 && p.gx <= t.x1 && p.gy >= t.y0 && p.gy <= t.y1);
     if (hit) this.runTrigger(hit);
@@ -801,12 +905,7 @@ export class WorldScene extends Phaser.Scene {
     const a = t.action;
     const p = this.player!;
     if (a.type === 'goto') {
-      this.transitioning = true;
-      sfx('door');
-      this.cameras.main.fadeOut(300, 20, 24, 36);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.restart({ map: a.to, mode: 'play', spawn: a.spawn } satisfies WorldData);
-      });
+      this.changeMap(a.to, a.spawn);
     } else if (a.type === 'teleport') {
       if (a.requires === 'portal' && getNet().coopUntil <= Date.now()) return;
       sfx('door');
@@ -819,11 +918,27 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  private changeMap(to: MapId, spawn?: WorldData['spawn']) {
+    this.transitioning = true;
+    sfx('door');
+    this.cameras.main.fadeOut(300, 20, 24, 36);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.restart({ map: to, mode: 'play', spawn } satisfies WorldData);
+    });
+  }
+
   private updatePrompt() {
     const p = this.player!;
     let best: Target | null = null;
     let bestD = Infinity;
     if (this.pose === 'stand') {
+      for (const drop of inventory.dropsOn(this.mapId)) {
+        const d = Math.hypot(drop.x - p.gx, drop.y - p.gy);
+        if (d < 1 && d < bestD) {
+          best = { kind: 'drop', drop };
+          bestD = d;
+        }
+      }
       for (const it of this.map.interactables) {
         const d = Math.hypot(it.gx - p.gx, it.gy - p.gy);
         if (d < it.radius && d < bestD) {
@@ -848,6 +963,7 @@ export class WorldScene extends Phaser.Scene {
     else if (this.pose === 'lie') text = 'E|Get up';
     else if (best?.kind === 'interactable') text = 'E|' + best.it.prompt;
     else if (best?.kind === 'prop') text = 'E|' + actLabel(best.act);
+    else if (best?.kind === 'drop') text = 'E|' + (inventory.slots.includes(null) ? 'Pick up ' : 'Swap for ') + ITEM_NAMES[best.drop.item];
     if (!text && this.mapId === 'campus') text = this.coopPrompt();
     if (text !== this.currentPrompt) {
       this.currentPrompt = text;
@@ -958,19 +1074,19 @@ export class WorldScene extends Phaser.Scene {
 function actLabel(a: PropAct): string {
   if (a.kind === 'sit') return 'Sit down';
   if (a.kind === 'lie') return 'Lie down';
-  if (a.kind === 'eat') return `${a.label} ${ITEMS[a.item as ItemId]}`;
+  if (a.kind === 'take') return `${a.label} ${ITEMS[a.item]}`;
   return a.label;
 }
 
 /** Ground canvases are expensive: render each map once and keep the textures. */
-function renderGroundCached(scene: Phaser.Scene, map: MapDef): { key: string; x: number; y: number }[] {
+function renderGroundCached(scene: Phaser.Scene, map: MapDef): { key: string; x: number; y: number; scale: number }[] {
   const prefix = 'ground_' + map.id + '_';
-  const cached = (scene.registry.get(prefix) as { key: string; x: number; y: number }[] | undefined) ?? null;
+  const cached = (scene.registry.get(prefix) as { key: string; x: number; y: number; scale: number }[] | undefined) ?? null;
   if (cached && cached.every((c) => scene.textures.exists(c.key))) return cached;
   const out = renderGround(map).map((c, i) => {
     const key = prefix + i;
     if (!scene.textures.exists(key)) scene.textures.addCanvas(key, c.canvas);
-    return { key, x: c.x, y: c.y };
+    return { key, x: c.x, y: c.y, scale: c.scale };
   });
   scene.registry.set(prefix, out);
   return out;
@@ -978,7 +1094,7 @@ function renderGroundCached(scene: Phaser.Scene, map: MapDef): { key: string; x:
 
 function isTyping(): boolean {
   const el = document.activeElement as HTMLElement | null;
-  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
 }
 
 function downloadSnapshot(image: HTMLImageElement) {

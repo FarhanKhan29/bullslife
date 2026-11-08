@@ -3,9 +3,11 @@
 **Your Campus. Your People. Your Story.**
 
 A cozy multiplayer isometric campus-life game set on a stylised UB North Campus, built for **UB Hacking 2026**.
-Create a student, walk around the whole North Campus, go inside **all 19 buildings**, sit, sleep, eat and play, meet other real players, chat, collect Campus Passport stamps, and team up to open the Secret Garden.
+Create a student, walk around the whole North Campus, go inside **20 buildings**, sit, sleep, eat and play, meet other real players, chat, collect Campus Passport stamps, and team up to open the Secret Garden.
 
 **Play it:** https://bullslife.vercel.app
+
+The layout follows the [official UB North Campus map](https://engineering.buffalo.edu/content/dam/authoritative/wayfinding/directions/North%20Campus%20Parking%20Map%2011x17.pdf). The game compresses walking distances and includes 20 playable buildings and several linked floors. The campus minimap is north-up.
 
 - **Engine:** Phaser 3 (2D isometric), Vite, TypeScript
 - **Multiplayer:** Supabase Realtime (Presence + Broadcast)
@@ -82,41 +84,59 @@ To require an (anonymous) Supabase session before a client can join a room, foll
 | --- | --- |
 | `W A S D` / arrows | Walk (on touch screens: drag anywhere) |
 | `Shift` | Run |
-| `E` / `Space` | Interact: sit, lie down, eat & drink, use objects, collect stamps (walk into a door to enter) |
+| `E` / `Space` | Interact with doors, cashiers, furniture, objects and dropped items |
+| `6`–`8` | Select an inventory slot (or click it) |
+| `F` / `G` | Eat or drink the selected item / put it on the ground |
 | `M` | Toggle the minimap (or click it) |
 | `Enter` | Chat (Esc to stop typing) |
 | `1`–`5` | Emotes 👋 🎉 ❤️ ❓ ⭐ |
 
 Goals:
-- Visit every building and collect all **19 Campus Passport stamps** (one inside each building).
+- Collect all **19 Campus Passport stamps**. The University Bookstore is an extra stop.
 - With a friend, stand on **switches A and B** near Davis Hall at the same time to open the portal to the **Secret Garden**.
 - Try the **photo booth** east of the fountain (saves a PNG on your device, never uploaded).
+
+### Inventory and dining
+
+The three slots hold food, books, sports equipment and store purchases. Select a slot, press **Eat** or **F** to consume food, or **Drop** or **G** to put it down. Press **E** nearby to pick it up. If all slots are full, the item in your selected slot trades places with the item on the ground. Use **↔** to swap two inventory slots. Inventory, UB Card balances and personal drops persist in the current browser tab across building visits and reloads.
+
+Go to the **UB Card Office at 1Capen** to buy an in-game Meal Plan with Campus Cash. The HUD's UB Card button shows your balance. At C3 and Governors Dining Center, pay or swipe at the entrance before visiting the stations. The game uses simulated balances, prices and meal exchanges.
+
+The layouts use published references, including the [Silverman and Lockwood floor plans](https://library.buffalo.edu/use/floor-plans.html), [UB Dining locations](https://ubdining.com/locations/north), and [UB building profiles](https://www.buffalo.edu/administrative-services/managing-facilities/planning-designing-and-construction/building-profiles.html). Interiors condense those spaces into playable rooms.
+
+### Chat
+
+- **Campus chat** is visible to everyone in the current public room.
+- **Private message:** Open **Friends** and select 💬 next to an online player. Use the conversation selector above chat to switch or reply.
+- **Friends chat:** Open **Friends → New friends room → Copy invite link**. Friends can open the link or paste it into **Join a friend’s room**. Anyone with that link can join and read the chat while present, so share it with the intended group.
+- Private messages and friends chat are encrypted in the browser using Web Crypto. Supabase relays the ciphertext, and chat history lives in the current page. Private messages use temporary guest identities. HTTPS or localhost is required for encrypted chat.
 
 ### The buildings
 
 | Area | Building | Inside |
 | --- | --- | --- |
-| Core | Student Union | Round atrium with the UB seal, info desk, Bulls Café, lounge |
-| Academic Spine | Capen Hall | Silverman Library: stacks, computers, reading tables, help desk |
-| | Lockwood Library | Tall stacks, reading room with green lamps, Special Collections |
-| | Norton Hall | Lecture hall with screen, podium and rows of seats |
-| | Talbert Hall | Classroom with a shared whiteboard, Tutoring Center |
-| | Baldy Hall | 24/7 computer lab and offices |
-| | Clemens Hall | Humanities gallery, sculptures, easel |
+| Core | Student Union | Welcome Center, Tim Hortons, Campus Tees, Moe’s, Union Marketplace and upstairs dining |
+| Academic Spine | Capen Hall | 1Capen UB Card Office, connected One World Café and third-floor Silverman Library |
+| | Lockwood Library | Second-floor courtyard, Services Desk, periodicals and computers |
+| | Norton Hall | Woldman Theatre and a passage to One World Café |
+| | Talbert Hall | Classroom and International Student Services |
+| | Baldy Hall | Classrooms, study corridor and link to Lockwood |
+| | Clemens Hall | Humanities seminar room and language lab |
 | Engineering | Davis Hall | CSE lab: robot arm, 3D printers, cleanroom window |
-| | Bell Hall | Machine shop with lathes |
-| | Furnas Hall | Design studio: drafting tables, 3D printing |
+| | Bell Hall | Industrial and systems engineering classrooms and lab |
+| | Furnas Hall | Materials Characterization Laboratory and engineering workstations |
 | | Ketter Hall | Earthquake shake table (shakes the screen!) |
-| Residence halls | Ellicott Complex | Dorm rooms with beds, lounge with TV and ping-pong, laundry |
-| | Governors | Common room with a piano, dorm room |
-| | Greiner Hall | Suite with kitchen, bedrooms, study lounge |
+| Residence halls | Ellicott Complex | Red Jacket rooms, link to Ellicott Food Court, The Elli and C3 |
+| | Governors | Common room, Teddy’s in Roosevelt and a link to Governors Dining Center |
+| | Greiner Hall | Bulls on the Run, a study lounge and a separate double-room suite |
 | Sports, arts, food | Alumni Arena | Basketball court, hoops, bleachers, trophy case |
 | | UB Stadium | Football field, goalposts, stands |
-| | Center for the Arts | Theatre stage with grand piano and drums, gallery |
-| | The Commons | UB campus store and café |
-| | Crossroads Culinary | Food stations: pizza, grill, Buffalo wings, noodles, salad, dessert |
+| | Center for the Arts | Skylit atrium, separate Mainstage Theatre and UB Art Gallery |
+| | The Commons | Subway and Young Chow storefronts and checkout |
+| | University Bookstore | Separate building on Lee Road with textbooks and UB gear |
+| | Crossroads Culinary | Cashier and named dining stations including Oreganos, Global Noodle and Blue Dragon |
 
-Everything you do is shared with other players in the same room: sitting and lying poses, the food or ball you hold,
+Other players in the room can see sitting and lying poses, the food or ball you hold,
 basketball shots and field goals, music, the earthquake test, and whiteboard text.
 
 ## Project structure
@@ -133,20 +153,20 @@ src/
     Avatar.ts              avatar game object: sprite sheet, poses, held items, name tag, bubbles, emotes
     iso.ts                 isometric projection, collision, depth helpers
     art.ts / furniture.ts  procedural props and furniture
-    ubBuildings.ts         the 19 building exteriors (generic generator + custom designs)
+    ubBuildings.ts         the 20 building exteriors
     textures.ts            texture registry, ground/floor/wall rendering (chunked for big maps)
     items.ts               holdable items + interaction flavour text
     maps/
       buildings.ts         building registry: position, door, look, passport stamp
       campus.ts            the outdoor North Campus layout
       interiorKit.ts       Room toolkit used to describe interiors as data
-      interiors*.ts        the 19 unique interiors
+      interiors*.ts        building interiors and connected floors
       registry.ts          map lookup (campus + interiors)
   net/
     multiplayer.ts         room state: validation, dedupe, ghost cleanup
     supabaseTransport.ts   Supabase Realtime (Presence + Broadcast)
     localTransport.ts      BroadcastChannel fallback (Local mode)
-  social/                  chat safety + local mute/block/report/favorites
+  social/                  encrypted chat, chat safety, local mute/block/report/favorites
   activities/              Campus Passport, co-op switches
   ui/                      HTML/CSS menus and overlays (menu, editor, HUD, chat, panels, minimap)
 tests/                     Vitest unit tests
@@ -155,8 +175,8 @@ supabase/                  optional Realtime authorization policies
 
 ## Multiplayer design
 
-- **Presence** (`room:<code>` channel, key = guest id): nickname, outfit, current map, co-op plate. Leaving presence removes the avatar immediately — no ghosts.
-- **Broadcast** events: `move` (max 10/s while walking, one on stop, heartbeat every 4 s idle; includes pose and held item), `chat`, `emote`, `hello` (newcomer asks for positions + whiteboards), `coop`, `fx` (shots, music, earthquake), `board` (whiteboard text, filtered like chat).
+- **Presence** (`room:north-v2:<code>` for public rooms, key = guest id): nickname, outfit, current map, co-op plate. Leaving presence removes the avatar immediately — no ghosts.
+- **Broadcast** events: `move` (max 10/s while walking, one on stop, heartbeat every 4 s idle; includes pose and held item), `chat`, `sealed-chat` (encrypted chat), `emote`, `hello` (newcomer asks for positions + whiteboards), `coop`, `fx` (shots, music, earthquake), `board` (whiteboard text, filtered like chat).
 - Every packet is validated; movement uses sequence numbers to drop duplicates/out-of-order packets; chat is de-duplicated by message id.
 - Remote avatars are interpolated smoothly and snap if they teleport.
 - Players who never appear in presence are pruned after 20 s. Reconnects re-track presence automatically.
@@ -169,14 +189,14 @@ supabase/                  optional Realtime authorization policies
 - **Reports are saved on your device only**; this build has no moderation backend and does not send them anywhere. The UI says so.
 - Names are sanitized (letters, numbers, spaces, `_ - .`, 2–16 chars); all text is rendered with `textContent`, never HTML.
 - Nothing is stored server-side: no chat history, no positions, no accounts.
-- Public rooms are joinable by anyone who has the site URL. Use "New private room" for a hard-to-guess code (not a security boundary).
+- Public rooms are joinable by room code. Friends-room invites carry the group key in the URL fragment. Create a fresh friends room if an invite has been shared too widely.
 
 A production version would need server-side moderation (e.g. a Supabase Edge Function relaying chat with filtering and rate limits) and authenticated accounts.
 
 ## Testing
 
-Automated: `npm test` (58 tests) covers isometric math, collision, appearance validation, chat sanitizing and rate limits,
-network packet validation (incl. poses and items), co-op logic, and every map: spawns walkable, exits, a stamp in each
+Automated: `npm test` covers isometric math, collision, appearance validation, chat sanitizing and rate limits,
+network packet validation (incl. poses and items), chat encryption and recipient isolation, co-op logic, and every map: spawns walkable, exits, a stamp in each
 interior, and every building door reachable from campus.
 
 ### Manual cross-device checklist
@@ -189,6 +209,8 @@ Use two **different devices** (or two browsers) with Supabase configured, both o
 - [ ] Device A and B: online counter shows 2; each sees the other's name and outfit.
 - [ ] Movement on A appears smoothly on B (and vice versa).
 - [ ] Chat from A appears in B's chat panel and as a speech bubble above A's avatar; `<b>tags</b>` show as plain text.
+- [ ] With A, B and C in one public room, A privately messages B. B can reply and C receives neither message.
+- [ ] A creates a friends room and B joins by invite. A and B see the friends chat while C remains in the public room.
 - [ ] Emotes 1–5 appear above the sender on both devices.
 - [ ] Friends → Copy invite link → open on B → both in the same room code.
 - [ ] Walk into any building door, explore, collect its passport stamp, walk out through EXIT.
@@ -218,4 +240,4 @@ Use two **different devices** (or two browsers) with Supabase configured, both o
 ## Credits
 
 Made by a team of three for UB Hacking 2026 with AI-assisted development. All art, sound and code are original;
-the campus is a loose, stylised tribute to UB North Campus, not an exact map.
+the stylised campus uses the real building layout with compressed distances.
