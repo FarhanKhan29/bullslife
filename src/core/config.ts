@@ -16,8 +16,8 @@ export const TILE_H = 32;
 
 /** Networking tuning. */
 export const NET = {
-  moveSendIntervalMs: 100, // max 10 movement packets / second while walking
-  idleHeartbeatMs: 4000, // re-send position while standing still
+  moveSendIntervalMs: 250, // max 4 movement packets / second while walking (Supabase Free allows 100 messages / second in total)
+  idleHeartbeatMs: 8000, // re-send position while standing still
   staleRemoveMs: 20000, // drop players we stopped hearing from (and who left presence)
 };
 
