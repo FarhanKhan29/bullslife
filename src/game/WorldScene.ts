@@ -60,6 +60,7 @@ export class WorldScene extends Phaser.Scene {
   private player?: Avatar;
   private remotes = new Map<string, Avatar>();
   private remoteLook = new Map<string, string>();
+  private remoteGlide = new Map<string, { seq: number; speed: number }>();
   private buildings: BuildingRef[] = [];
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private currentPrompt: string | null = null;
@@ -93,6 +94,7 @@ export class WorldScene extends Phaser.Scene {
     this.spawn = data.spawn;
     this.remotes = new Map();
     this.remoteLook = new Map();
+    this.remoteGlide = new Map();
     this.buildings = [];
     this.currentPrompt = null;
     this.target = null;
@@ -1053,9 +1055,15 @@ export class WorldScene extends Phaser.Scene {
       const dx = rp.x - av.gx;
       const dy = rp.y - av.gy;
       const dist = Math.hypot(dx, dy);
-      if (dist > 4 || rp.pose !== av.pose) av.setGridPos(rp.x, rp.y);
+      // Packets arrive only a few times a second, so glide at a steady speed towards each one.
+      let glide = this.remoteGlide.get(rp.id);
+      if (!glide || glide.seq !== rp.lastSeq) {
+        glide = { seq: rp.lastSeq, speed: dist / ((NET.moveSendIntervalMs / 1000) * 1.1) };
+        this.remoteGlide.set(rp.id, glide);
+      }
+      if (dist > 8 || rp.pose !== av.pose) av.setGridPos(rp.x, rp.y);
       else {
-        const k = 1 - Math.exp(-dt * 12);
+        const k = dist > 0 ? Math.min(1, (glide.speed * dt) / dist) : 0;
         av.setGridPos(av.gx + dx * k, av.gy + dy * k);
       }
       av.facing = rp.facing;
@@ -1071,6 +1079,7 @@ export class WorldScene extends Phaser.Scene {
         av.destroy();
         this.remotes.delete(id);
         this.remoteLook.delete(id);
+        this.remoteGlide.delete(id);
       }
     }
   }

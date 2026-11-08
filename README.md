@@ -176,7 +176,7 @@ supabase/                  optional Realtime authorization policies
 ## Multiplayer design
 
 - **Presence** (`room:north-v2:<code>` for public rooms, key = guest id): nickname, outfit, current map, co-op plate. Leaving presence removes the avatar immediately — no ghosts.
-- **Broadcast** events: `move` (max 10/s while walking, one on stop, heartbeat every 4 s idle; includes pose and held item), `chat`, `sealed-chat` (encrypted chat), `emote`, `hello` (newcomer asks for positions + whiteboards), `coop`, `fx` (shots, music, earthquake), `board` (whiteboard text, filtered like chat).
+- **Broadcast** events: `move` (max 4/s while walking, one on stop, heartbeat every 8 s idle; includes pose and held item), `chat`, `sealed-chat` (encrypted chat), `emote`, `hello` (newcomer asks for positions + whiteboards), `coop`, `fx` (shots, music, earthquake), `board` (whiteboard text, filtered like chat).
 - Every packet is validated; movement uses sequence numbers to drop duplicates/out-of-order packets; chat is de-duplicated by message id.
 - Remote avatars are interpolated smoothly and snap if they teleport.
 - Players who never appear in presence are pruned after 20 s. Reconnects re-track presence automatically.
