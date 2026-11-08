@@ -15,6 +15,7 @@ import { isMapId } from '../game/maps/registry';
 import { ITEM_IDS } from '../game/items';
 import type { Pose } from '../game/Avatar';
 import { IncomingFloodGuard, sanitizeMessage } from '../social/chatSafety';
+import { createChatIdentity, directChatKey, isChatKey, openChat, openFriendsChat, parseChatEnvelope, sealChat } from '../social/privateChat';
 import { LocalTransport } from './localTransport';
 import { SupabaseTransport } from './supabaseTransport';
 import type { MovePacket, NetStatus, PlayerMeta, Transport } from './types';
@@ -79,6 +80,7 @@ export function parseMeta(raw: unknown): PlayerMeta | null {
   return {
     id: r.id,
     look: sanitizeAppearance(r.look),
+    chatKey: isChatKey(r.chatKey) ? r.chatKey : undefined,
     map: isMapId(r.map) ? r.map : 'campus',
     plate: r.plate === 'A' || r.plate === 'B' ? r.plate : null,
     joinedAt: typeof r.joinedAt === 'number' ? r.joinedAt : 0,
@@ -88,6 +90,7 @@ export function parseMeta(raw: unknown): PlayerMeta | null {
 type Events = {
   players: (list: RemotePlayer[]) => void;
   chat: (msg: ChatMessage) => void;
+  privateChat: (peerId: string | null, msg: ChatMessage) => void;
   emote: (id: string, emote: number) => void;
   status: (s: NetStatus) => void;
   coop: (until: number) => void;
@@ -103,6 +106,11 @@ export class Multiplayer extends Emitter<Events> {
   room = '';
   private transport: Transport | null = null;
   private meta: PlayerMeta;
+  private connection = 0;
+  private cleanup = Promise.resolve();
+  private identity = createChatIdentity().catch(() => null);
+  private chatRoom = '';
+  private friendsKey: CryptoKey | null = null;
   private seq = 0;
   private seenChat = new Set<string>();
   private flood = new IncomingFloodGuard();
@@ -128,40 +136,76 @@ export class Multiplayer extends Emitter<Events> {
     return this.transport?.kind === 'supabase' ? 'online' : 'local';
   }
 
-  async connect(room: string) {
-    await this.disconnect();
+  async connect(room: string, friendsInvite: string | null = null) {
+    const connection = ++this.connection;
+    const stop = this.stopTransport();
+    this.status = 'connecting';
+    this.emit('status', this.status);
     this.room = room;
     this.players.clear();
+    this.seenChat.clear();
+    this.boards.clear();
+    this.coopUntil = 0;
     this.emit('players', []);
-    const t: Transport = ONLINE_ENABLED ? new SupabaseTransport() : new LocalTransport();
-    this.transport = t;
-    t.onStatus = (s) => {
-      this.status = s;
-      this.emit('status', s);
-      if (s === 'online') {
-        // ask everyone to tell us where they are right now
-        t.send('hello', { id: this.meta.id });
-        if (this.lastMove) t.send('move', { ...this.lastMove, seq: ++this.seq });
-      }
-    };
-    t.onPresence = (metas) => this.handlePresence(metas);
-    t.onEvent = (ev, payload) => this.handleEvent(ev, payload);
     try {
-      await t.connect(room, this.meta);
+      await stop;
+      const identity = await this.identity;
+      const group = friendsInvite ? await openFriendsChat(friendsInvite) : null;
+      if (connection !== this.connection) return;
+      if (group && !identity) throw new Error('Encrypted chat is unavailable');
+      if (identity) this.meta = { ...this.meta, id: identity.id, chatKey: identity.chatKey };
+      this.chatRoom = group?.room ?? 'north-v2:' + room;
+      this.friendsKey = group?.key ?? null;
+      const t: Transport = ONLINE_ENABLED ? new SupabaseTransport() : new LocalTransport();
+      this.transport = t;
+      t.onStatus = (status) => {
+        if (connection !== this.connection) return;
+        this.status = status;
+        this.emit('status', status);
+        if (status === 'online') {
+          t.send('hello', { id: this.meta.id });
+          if (this.lastMove) t.send('move', { ...this.lastMove, id: this.meta.id, seq: ++this.seq });
+        }
+      };
+      t.onPresence = (metas) => {
+        if (connection === this.connection) this.handlePresence(metas);
+      };
+      t.onEvent = (ev, payload) => {
+        if (connection === this.connection) this.handleEvent(ev, payload);
+      };
+      const tMeta = this.meta;
+      await t.connect(this.chatRoom, tMeta);
+      if (connection !== this.connection) {
+        await t.disconnect();
+        return;
+      }
+      if (this.meta !== tMeta) t.updateMeta(this.meta);
+      this.pruneTimer = window.setInterval(() => this.prune(), 2000);
     } catch (err) {
+      if (connection !== this.connection) return;
       console.error('[net] connect failed', err);
       this.status = 'error';
-      this.emit('status', 'error');
+      this.emit('status', this.status);
     }
-    this.pruneTimer = window.setInterval(() => this.prune(), 2000);
   }
 
   async disconnect() {
+    const connection = ++this.connection;
+    await this.stopTransport();
+    if (connection === this.connection) {
+      this.status = 'offline';
+      this.emit('status', this.status);
+    }
+  }
+
+  private async stopTransport() {
     if (this.pruneTimer) clearInterval(this.pruneTimer);
     this.pruneTimer = null;
     const t = this.transport;
     this.transport = null;
-    if (t) await t.disconnect();
+    this.friendsKey = null;
+    if (t) this.cleanup = this.cleanup.catch(() => {}).then(() => t.disconnect());
+    await this.cleanup;
   }
 
   updateMeta(patch: Partial<PlayerMeta>) {
@@ -177,11 +221,70 @@ export class Multiplayer extends Emitter<Events> {
     this.transport?.send('move', pkt as unknown as Record<string, unknown>);
   }
 
-  sendChat(text: string): ChatMessage {
+  sendChat(text: string): ChatMessage | null {
+    if (this.status !== 'online' || !this.transport || this.friendsKey) return null;
     const msg = { id: this.meta.id, mid: randomId(10), text, t: Date.now() };
-    this.seenChat.add(msg.mid);
-    this.transport?.send('chat', msg);
+    this.rememberChat(msg.mid);
+    this.transport.send('chat', msg);
     return { id: msg.id, name: this.meta.look.name, text, t: msg.t, self: true };
+  }
+
+  canMessage(peerId: string) {
+    const peer = this.players.get(peerId);
+    return !!(this.meta.chatKey && peer?.inPresence && peer.meta?.chatKey);
+  }
+
+  async sendPrivateChat(text: string, peerId: string | null): Promise<ChatMessage | null> {
+    const t = this.transport;
+    const room = this.chatRoom;
+    if (!t || this.status !== 'online') return null;
+    const address = { id: this.meta.id, to: peerId ?? '', mid: randomId(10) };
+    try {
+      const key = peerId ? await this.peerKey(peerId, room) : this.friendsKey;
+      if (!key) return null;
+      const packet = await sealChat(key, room, address, text);
+      if (this.transport !== t || this.status !== 'online' || (peerId && !this.canMessage(peerId))) return null;
+      t.send('sealed-chat', { ...packet });
+      return { id: address.id, name: this.meta.look.name, text, t: Date.now(), self: true };
+    } catch {
+      return null;
+    }
+  }
+
+  private async peerKey(id: string, room: string) {
+    const peer = this.players.get(id);
+    const identity = await this.identity;
+    if (!identity || !peer?.inPresence || !peer.meta?.chatKey) return null;
+    return directChatKey(identity.privateKey, id, peer.meta.chatKey, room);
+  }
+
+  private async receivePrivateChat(payload: Record<string, unknown>) {
+    const packet = parseChatEnvelope(payload);
+    if (!packet || packet.id === this.meta.id || (packet.to && packet.to !== this.meta.id)) return;
+    const peer = this.players.get(packet.id);
+    if (!peer?.inPresence || !peer.meta?.chatKey) return;
+    const seenKey = 'sealed:' + packet.id + ':' + packet.mid;
+    if (this.seenChat.has(seenKey)) return;
+    const connection = this.connection;
+    const room = this.chatRoom;
+    try {
+      const key = packet.to ? await this.peerKey(packet.id, room) : this.friendsKey;
+      if (!key) return;
+      const text = sanitizeMessage(await openChat(key, room, packet));
+      if (connection !== this.connection || !text || this.seenChat.has(seenKey)) return;
+      this.rememberChat(seenKey);
+      if (!this.flood.allow('sealed:' + packet.id)) return;
+      this.emit('privateChat', packet.to ? packet.id : null, {
+        id: packet.id, name: peer.meta.look.name, text, t: Date.now(), self: false,
+      });
+    } catch {
+      // A forged, corrupted or misaddressed message cannot be decrypted.
+    }
+  }
+
+  private rememberChat(id: string) {
+    this.seenChat.add(id);
+    if (this.seenChat.size > 500) this.seenChat = new Set([...this.seenChat].slice(-250));
   }
 
   sendEmote(e: number) {
@@ -284,13 +387,14 @@ export class Multiplayer extends Emitter<Events> {
       p.item = m.it !== undefined && m.it >= 0 ? ITEM_IDS[m.it] : null;
       p.hasPosition = true;
       p.lastHeard = now;
-    } else if (ev === 'chat') {
+    } else if (ev === 'sealed-chat') {
+      void this.receivePrivateChat(payload);
+    } else if (ev === 'chat' && !this.friendsKey) {
       const id = payload.id;
       const mid = payload.mid;
       if (typeof id !== 'string' || typeof mid !== 'string' || mid.length > 20 || id === this.meta.id) return;
       if (this.seenChat.has(mid)) return;
-      this.seenChat.add(mid);
-      if (this.seenChat.size > 500) this.seenChat = new Set([...this.seenChat].slice(-250));
+      this.rememberChat(mid);
       if (!this.flood.allow(id)) return;
       const text = sanitizeMessage(payload.text);
       const p = this.players.get(id);

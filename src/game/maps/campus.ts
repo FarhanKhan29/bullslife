@@ -1,68 +1,68 @@
 /**
- * The outdoor North Campus: a compact, stylised layout of real UB buildings.
- *   north row  — Center for the Arts, The Commons, Crossroads Culinary
- *   the Spine  — Baldy, Clemens, Capen, Norton, Talbert, Furnas, Bell
- *   centre     — Lockwood Library, Student Union, fountain plaza, Lake LaSalle
- *   east       — Davis, Ketter, Ellicott Complex
- *   south-west — Alumni Arena, UB Stadium, Governors, Greiner Hall
- * Every building is enterable (see buildings.ts + interiors*.ts).
+ * UB North Campus, oriented north-up in grid coordinates. The Academic Spine
+ * connects the west academic core to Student Union and the east arts district.
+ * The north residences and southeast athletics grounds use compressed distances.
  */
 import { rng } from '../art';
 import type { Collider } from '../iso';
-import { BUILDINGS, doorTrigger } from './buildings';
+import { BUILDINGS, doorOutside, doorTrigger } from './buildings';
 import type { Ground, Interactable, MapDef, Prop, Trigger } from './types';
 
-export const CAMPUS_W = 84;
-export const CAMPUS_H = 70;
+export const CAMPUS_W = 130;
+export const CAMPUS_H = 100;
 
-export const PLAZA = { x: 44.5, y: 29.5, r: 4.2 };
-export const LAKE = { x: 52.5, y: 46.5, rx: 6.5, ry: 4.2 };
-export const GARDEN = { x0: 41, y0: 55, x1: 53, y1: 70 };
+export const PLAZA = { x: 82, y: 69, r: 3.7 };
+export const LAKE = { x: 98, y: 39, rx: 18, ry: 12 };
+export const GARDEN = { x0: 16, y0: 84, x1: 28, y1: CAMPUS_H };
 
-/** Co-op activity layout (see activities/coop.ts). */
+const PHOTO_BOOTH = { x: 87.5, y: 69 };
+const MAP_BOARD = { x: 80, y: 74 };
+const COOP_SIGN = { x: 69.2, y: 44 };
+
 export const COOP = {
-  plateA: { x: 58.6, y: 30 },
-  plateB: { x: 68, y: 38.4 },
+  plateA: { x: 66.6, y: 39 },
+  plateB: { x: 72.5, y: 43.6 },
   plateRadius: 0.8,
-  portal: { x: 56, y: 37.4 },
-  gardenSpawn: { x: 47, y: 62 },
-  gardenReturn: { x: 44, y: 58.6 },
-  area: { x: 62, y: 34, r: 9 },
+  portal: { x: 69.7, y: 47.2 },
+  gardenSpawn: { x: 22, y: 91 },
+  gardenReturn: { x: 19, y: 87.5 },
+  area: { x: 69.5, y: 43.6, r: 7 },
 };
 
-export const CAMPUS_SPAWN = { x: 44.5, y: 35.6 };
+export const CAMPUS_SPAWN = { x: 76, y: 73 };
 
-/** Walkways [x0, y0, x1, y1) in tiles. */
+/** Walkways [x0, y0, x1, y1) in tiles. Grid x is east, y is south. */
 const PATHS: [number, number, number, number][] = [
-  [2, 21, 82, 23], // the Academic Spine walkway
-  [3, 10, 80, 11], // north road
-  [26, 2, 28, 68], // west walk
-  [50, 2, 52, 42], // centre walk (to the lake)
-  [60, 23, 62, 61], // east walk
-  [80, 23, 82, 33], // to Ketter
-  // spurs to doors
-  [6, 19, 8, 21],
-  [15, 19, 18, 21],
-  [33, 19, 35, 21],
-  [45, 19, 47, 21],
-  [55, 19, 58, 21],
-  [65, 19, 68, 21],
-  [75, 19, 77, 21],
-  [7, 9, 9, 10],
-  [44, 5, 50, 7],
-  [59, 9, 61, 10],
-  [23, 30, 26, 32],
-  [35, 34, 37, 37],
-  [28, 36, 46, 37],
-  [44, 33, 46, 37],
-  [60, 36, 66, 37],
-  [15, 44, 26, 46],
-  [19, 59, 26, 61],
-  [28, 51, 40, 52],
-  [39, 47, 41, 52],
-  [28, 63, 37, 64],
-  [35, 62, 37, 64],
-  [60, 59, 72, 60],
+  [20, 73, 105, 75], // Academic Spine and Founders Promenade
+  [27, 55, 80, 57], // Mary Talbert Way
+  [17, 58, 27, 60], // Governors approach
+  [25, 55, 27, 74],
+  [71, 21, 73, 52], // Lee Road, from Ellicott to Student Union
+  [71, 51, 77, 53],
+  [75, 52, 77, 74],
+  [68, 18, 77, 20], // Crossroads and Ellicott
+  [72, 21, 88, 23], // north lake shore
+  [72, 34, 81, 36], // Greiner entrance
+  [85, 21, 87, 28],
+  [74, 51, 88, 53], // Lee Loop and Commons
+  [85, 53, 87, 55],
+  [55, 41, 57, 57], // engineering walk
+  [54, 44, 75, 46],
+  [61, 53, 63, 57],
+  [62, 63, 64, 73],
+  [52, 69, 54, 74],
+  [33, 74, 35, 77],
+  [74, 68, 79, 75], // Student Union
+  [85, 64, 87, 74], // Commons to Center for the Arts
+  [92, 70, 95, 75],
+  [58, 82, 98, 85], // south side of the academic core
+  [61, 74, 63, 85],
+  [77, 73, 79, 84],
+  [82, 83, 84, 87],
+  [96, 74, 98, 85],
+  [110, 76, 113, 84], // Alumni Arena to stadium
+  [111, 79, 128, 81],
+  [126, 79, 128, 92],
 ];
 
 function inEllipse(x: number, y: number, cx: number, cy: number, rx: number, ry: number) {
@@ -85,7 +85,7 @@ export function buildCampus(): MapDef {
       for (const [x0, y0, x1, y1] of PATHS) if (cx >= x0 && cx < x1 && cy >= y0 && cy < y1) g = 'path';
       if (inEllipse(cx, cy, PLAZA.x, PLAZA.y, PLAZA.r, PLAZA.r)) g = 'plaza';
       if (inEllipse(cx, cy, LAKE.x, LAKE.y, LAKE.rx, LAKE.ry)) g = 'water';
-      if (cx >= 48 && cx < 50 && cy >= 28.8 && cy < 30.8) g = 'booth';
+      if (Math.abs(cx - PHOTO_BOOTH.x) < 1.3 && Math.abs(cy - PHOTO_BOOTH.y) < 1.3) g = 'booth';
       row.push(g);
     }
     ground.push(row);
@@ -100,8 +100,21 @@ export function buildCampus(): MapDef {
   for (const b of BUILDINGS) {
     const f = { x0: b.x0, y0: b.y0, x1: b.x0 + b.w, y1: b.y0 + b.d };
     props.push({ tex: 'b_' + b.id, gx: f.x0, gy: f.y0, footprint: f, label: b.name, labelHeight: b.labelH });
-    colliders.push(...(b.colliders ?? [{ kind: 'rect' as const, ...f }]));
+    if (b.colliders) {
+      for (const c of b.colliders) {
+        colliders.push(c.kind === 'circle'
+          ? { ...c, x: c.x + b.x0, y: c.y + b.y0 }
+          : { kind: 'rect', x0: c.x0 + b.x0, y0: c.y0 + b.y0, x1: c.x1 + b.x0, y1: c.y1 + b.y0 });
+      }
+    } else {
+      colliders.push({ kind: 'rect', ...f });
+    }
     triggers.push({ id: 'door-' + b.id, ...doorTrigger(b), action: { type: 'goto', to: b.id } });
+    const outside = doorOutside(b);
+    interactables.push({
+      id: 'entrance-' + b.id, gx: outside.x, gy: outside.y, radius: 1.25,
+      prompt: 'Enter ' + b.name, action: { type: 'enter', to: b.id },
+    });
   }
 
   // ----- plaza: fountain, benches, flag, signs
@@ -120,34 +133,26 @@ export function buildCampus(): MapDef {
       reach: 1.1,
     });
   }
-  props.push({ tex: 'flagpole', gx: 41, gy: 25.6, collider: { kind: 'circle', x: 41, y: 25.6, r: 0.2 } });
-  props.push({ tex: 'sign_welcome', gx: 42.6, gy: 35.2, collider: { kind: 'circle', x: 42.6, y: 35.2, r: 0.25 } });
-  props.push({ tex: 'mapboard', gx: 47.2, gy: 35, collider: { kind: 'circle', x: 47.2, y: 35, r: 0.4 } });
-  interactables.push({ id: 'mapboard', gx: 47.2, gy: 35, radius: 1.6, prompt: 'Look at the campus map', action: { type: 'info', text: 'Every building on North Campus is open! Walk into any door, sit on chairs, try the food. Press M for the minimap and hold Shift to run.' } });
-  props.push({ tex: 'sign_lake', gx: 51, gy: 41.4, collider: { kind: 'circle', x: 51, y: 41.4, r: 0.25 } });
+  props.push({ tex: 'flagpole', gx: 84.8, gy: 65.5, collider: { kind: 'circle', x: 84.8, y: 65.5, r: 0.2 } });
+  props.push({ tex: 'sign_welcome', gx: 77.6, gy: 72, collider: { kind: 'circle', x: 77.6, y: 72, r: 0.25 } });
+  props.push({ tex: 'mapboard', gx: MAP_BOARD.x, gy: MAP_BOARD.y, collider: { kind: 'circle', ...MAP_BOARD, r: 0.4 } });
+  interactables.push({ id: 'mapboard', gx: MAP_BOARD.x, gy: MAP_BOARD.y, radius: 1.6, prompt: 'Look at the campus map', action: { type: 'info', text: 'Press M for a north-up campus map. Ellicott and Greiner are north of the Academic Spine. Follow the promenade east to the Center for the Arts and Alumni Arena.' } });
+  props.push({ tex: 'sign_lake', gx: 88, gy: 51, collider: { kind: 'circle', x: 88, y: 51, r: 0.25 } });
 
-  // ----- photo booth (east of the plaza)
-  props.push({ tex: 'photobooth', gx: 50.6, gy: 28.6, collider: { kind: 'rect', x0: 49.9, y0: 28.1, x1: 51.3, y1: 29.1 } });
-  interactables.push({ id: 'photo', gx: 49, gy: 29.8, radius: 1.3, prompt: 'Take a group photo', action: { type: 'photo' } });
+  props.push({ tex: 'photobooth', gx: PHOTO_BOOTH.x, gy: PHOTO_BOOTH.y, collider: { kind: 'rect', x0: 86.8, y0: 68.5, x1: 88.2, y1: 69.5 } });
+  interactables.push({ id: 'photo', gx: PHOTO_BOOTH.x, gy: PHOTO_BOOTH.y + 1, radius: 1.3, prompt: 'Take a group photo', action: { type: 'photo' } });
 
-  // ----- benches + lamps along walkways
-  for (let x = 6; x < 80; x += 8) {
-    props.push({ tex: 'lamp', gx: x, gy: 20.6, collider: { kind: 'circle', x, y: 20.6, r: 0.2 } });
-    if (x % 16 === 6 && ground[23]?.[x] === 'grass')
-      props.push({ tex: 'bench_x', gx: x + 2, gy: 23.6, collider: { kind: 'rect', x0: x + 1.2, y0: 23.35, x1: x + 2.8, y1: 23.85 }, act: { kind: 'sit', facing: 'back' }, reach: 1.1 });
+  for (const [x, y] of [[23, 60], [36, 72.4], [45, 74.7], [56, 72.4], [67, 74.7], [78, 60], [74.4, 52], [77.6, 34], [96, 74.7], [103, 71.4], [114, 82]]) {
+    props.push({ tex: 'lamp', gx: x, gy: y, collider: { kind: 'circle', x, y, r: 0.2 } });
   }
-  for (let y = 4; y < 66; y += 8) props.push({ tex: 'lamp', gx: 25.6, gy: y, collider: { kind: 'circle', x: 25.6, y, r: 0.2 } });
-  for (let y = 26; y < 60; y += 8) props.push({ tex: 'lamp', gx: 59.6, gy: y, collider: { kind: 'circle', x: 59.6, y, r: 0.2 } });
-  for (const [x, y] of [
-    [49.4, 39],
-    [55.6, 40.6],
-  ])
+  for (const [x, y] of [[46, 72.5], [65, 74.6], [88, 52.6], [94, 53]]) {
     props.push({ tex: 'bench_x', gx: x, gy: y, collider: { kind: 'rect', x0: x - 0.8, y0: y - 0.25, x1: x + 0.8, y1: y + 0.25 }, act: { kind: 'sit', facing: 'front' }, reach: 1.1 });
-  props.push({ tex: 'trash', gx: 38.4, gy: 35.4, collider: { kind: 'circle', x: 38.4, y: 35.4, r: 0.25 } });
-  props.push({ tex: 'bikerack', gx: 40, gy: 33.6, collider: { kind: 'rect', x0: 39.2, y0: 33.3, x1: 40.8, y1: 33.9 } });
+  }
+  props.push({ tex: 'trash', gx: 79, gy: 73, collider: { kind: 'circle', x: 79, y: 73, r: 0.25 } });
+  props.push({ tex: 'bikerack', gx: 71, gy: 70.9, collider: { kind: 'rect', x0: 70.2, y0: 70.6, x1: 71.8, y1: 71.2 } });
 
-  // ----- co-op activity (plates + portal) near Davis Hall
-  props.push({ tex: 'sign_coop', gx: 58.2, gy: 33.6, collider: { kind: 'circle', x: 58.2, y: 33.6, r: 0.25 } });
+  // ----- co-op activity near Davis Hall
+  props.push({ tex: 'sign_coop', gx: COOP_SIGN.x, gy: COOP_SIGN.y, collider: { kind: 'circle', ...COOP_SIGN, r: 0.25 } });
   triggers.push({ id: 'portal', x0: COOP.portal.x - 0.6, y0: COOP.portal.y - 0.3, x1: COOP.portal.x + 0.6, y1: COOP.portal.y + 0.4, action: { type: 'teleport', x: COOP.gardenSpawn.x, y: COOP.gardenSpawn.y, requires: 'portal' } });
   colliders.push({ kind: 'circle', x: COOP.portal.x - 0.95, y: COOP.portal.y + 0.1, r: 0.25 });
   colliders.push({ kind: 'circle', x: COOP.portal.x + 0.95, y: COOP.portal.y - 0.1, r: 0.25 });
@@ -161,24 +166,24 @@ export function buildCampus(): MapDef {
     props.push({ tex: 'hedge', gx: GARDEN.x0, gy: y });
     props.push({ tex: 'hedge', gx: GARDEN.x1, gy: y });
   }
-  props.push({ tex: 'statue', gx: 47, gy: 65, collider: { kind: 'rect', x0: 46.1, y0: 64.4, x1: 47.9, y1: 65.6 } });
-  interactables.push({ id: 'statue', gx: 47, gy: 63.8, radius: 1.8, prompt: 'Admire the Golden Bull', action: { type: 'info', text: 'You found the Secret Garden! Only teams who work together get here.' } });
+  props.push({ tex: 'statue', gx: 22, gy: 95, collider: { kind: 'rect', x0: 21.1, y0: 94.4, x1: 22.9, y1: 95.6 } });
+  interactables.push({ id: 'statue', gx: 22, gy: 93.8, radius: 1.8, prompt: 'Admire the Golden Bull', action: { type: 'info', text: 'You found the Secret Garden! Only teams who work together get here.' } });
   props.push({ tex: 'portal_arch', gx: COOP.gardenReturn.x, gy: COOP.gardenReturn.y });
   triggers.push({ id: 'garden-return', x0: COOP.gardenReturn.x - 0.6, y0: COOP.gardenReturn.y - 0.3, x1: COOP.gardenReturn.x + 0.6, y1: COOP.gardenReturn.y + 0.4, action: { type: 'teleport', x: COOP.portal.x, y: COOP.portal.y + 1.4 } });
   colliders.push({ kind: 'circle', x: COOP.gardenReturn.x - 0.95, y: COOP.gardenReturn.y + 0.1, r: 0.25 });
   colliders.push({ kind: 'circle', x: COOP.gardenReturn.x + 0.95, y: COOP.gardenReturn.y - 0.1, r: 0.25 });
   for (const [x, y] of [
-    [43, 67],
-    [51, 59],
-    [51, 67],
-    [43.5, 62],
+    [18, 97],
+    [26, 89],
+    [26, 97],
+    [18.5, 92],
   ])
     props.push({ tex: 'tree_cherry_' + (Math.floor(x + y) % 2), gx: x, gy: y, collider: { kind: 'circle', x, y, r: 0.3 } });
   for (const [x, y] of [
-    [45, 61],
-    [49, 61],
-    [45, 67.5],
-    [49, 67.5],
+    [20, 91],
+    [24, 91],
+    [20, 97.5],
+    [24, 97.5],
   ])
     props.push({ tex: 'lantern', gx: x, gy: y, collider: { kind: 'circle', x, y, r: 0.15 } });
 
@@ -194,6 +199,7 @@ export function buildCampus(): MapDef {
     if (Math.hypot(x - CAMPUS_SPAWN.x, y - CAMPUS_SPAWN.y) < 4) return true;
     if (Math.hypot(x - PLAZA.x, y - PLAZA.y) < PLAZA.r + 1.5) return true;
     if (x > GARDEN.x0 - 1 && x < GARDEN.x1 + 1 && y > GARDEN.y0 - 1) return true;
+    if (Math.hypot(x - COOP.portal.x, y - COOP.portal.y) < 2.5) return true;
     for (const [dx, dy] of [
       [1, 0],
       [-1, 0],
@@ -224,8 +230,11 @@ export function buildCampus(): MapDef {
     n++;
   }
 
-  // lake is not walkable (a row of circles approximates the ellipse)
-  for (let i = -2; i <= 2; i++) colliders.push({ kind: 'circle', x: LAKE.x + i * 2.2, y: LAKE.y, r: Math.sqrt(1 - (i * 2.2) ** 2 / (LAKE.rx * LAKE.rx)) * LAKE.ry + 0.1 });
+  // The lake spans one continuous run of water tiles per row.
+  for (let y = 0; y < H; y++) {
+    const x0 = ground[y].indexOf('water');
+    if (x0 !== -1) colliders.push({ kind: 'rect', x0, y0: y, x1: ground[y].lastIndexOf('water') + 1, y1: y + 1 });
+  }
 
   return {
     id: 'campus',

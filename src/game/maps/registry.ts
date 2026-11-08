@@ -1,9 +1,9 @@
-/** Central lookup for every map: the campus plus one interior per building. */
-import { BUILDINGS } from './buildings';
+/** Central lookup for every map: the campus, building interiors and linked floors. */
 import { buildCampus } from './campus';
-import { arenaInterior, cfaInterior, commonsInterior, crossroadsInterior, ellicottInterior, governorsInterior, greinerInterior, stadiumInterior } from './interiorsLife';
+import { arenaInterior, cfaGalleryInterior, cfaInterior, cfaMainstageInterior, commonsInterior, crossroadsInterior, ellicottInterior, governorsInterior, greinerInterior, greinerSuiteInterior, stadiumInterior } from './interiorsLife';
 import { bellInterior, davisInterior, furnasInterior, ketterInterior } from './interiorsEng';
-import { baldyInterior, capenInterior, clemensInterior, lockwoodInterior, nortonInterior, talbertInterior, unionInterior } from './interiorsSpine';
+import { baldyInterior, capenInterior, clemensInterior, lockwoodInterior, nortonInterior, silvermanInterior, talbertInterior, unionInterior } from './interiorsSpine';
+import { bookstoreInterior, ellicottFoodCourtInterior, governorsDiningInterior, oneWorldInterior, unionDiningInterior } from './interiorsRetail';
 import type { MapDef, MapId } from './types';
 
 const INTERIORS: Record<string, () => MapDef> = {
@@ -26,9 +26,18 @@ const INTERIORS: Record<string, () => MapDef> = {
   cfa: cfaInterior,
   commons: commonsInterior,
   crossroads: crossroadsInterior,
+  bookstore: bookstoreInterior,
+  'union-dining': unionDiningInterior,
+  'one-world': oneWorldInterior,
+  silverman: silvermanInterior,
+  'ellicott-food': ellicottFoodCourtInterior,
+  'governors-dining': governorsDiningInterior,
+  'greiner-suite': greinerSuiteInterior,
+  'cfa-mainstage': cfaMainstageInterior,
+  'cfa-gallery': cfaGalleryInterior,
 };
 
-export const MAP_IDS: string[] = ['campus', ...BUILDINGS.map((b) => b.id)];
+export const MAP_IDS: string[] = ['campus', ...Object.keys(INTERIORS)];
 const MAP_SET = new Set(MAP_IDS);
 export const isMapId = (v: unknown): v is MapId => typeof v === 'string' && MAP_SET.has(v);
 

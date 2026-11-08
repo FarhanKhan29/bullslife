@@ -3,9 +3,9 @@ import { getStamps, stampCount, STAMPS, STAMP_TOTAL } from '../activities/passpo
 import { drawPreview } from '../character/avatarRenderer';
 import { play } from '../core/audio';
 import { DEFAULT_ROOM, ONLINE_ENABLED } from '../core/config';
-import { getNet, inviteLink, sanitizeRoom, session, switchRoom } from '../core/session';
+import { bus, getNet, inviteLink, sanitizeRoom, session, switchRoom } from '../core/session';
 import { getSettings, updateSettings } from '../core/settings';
-import { randomId } from '../core/storage';
+import { makeFriendsInvite, readFriendsInvite } from '../social/privateChat';
 import { isBlocked, isFavorite, isMuted, listFavorites, moderationEvents, saveReport, toggleBlock, toggleFavorite, toggleMute } from '../social/moderation';
 import { closeModal, copyText, h, openModal, toast } from './dom';
 
@@ -18,17 +18,24 @@ export function openFriends() {
     const link = inviteLink();
     const joinInput = h('input', { class: 'field', placeholder: 'Room code or invite link', 'aria-label': 'Room code', style: 'flex:1;min-width:160px' }) as HTMLInputElement;
     const join = async () => {
-      let v = joinInput.value.trim();
-      try {
-        if (v.includes('://')) v = new URL(v).searchParams.get('room') ?? '';
-      } catch {
-        /* not a URL */
+      let value = joinInput.value.trim();
+      let friendsInvite: string | null = null;
+      if (value.includes('://')) {
+        try {
+          const url = new URL(value);
+          friendsInvite = readFriendsInvite(url.hash);
+          if (url.hash && !friendsInvite) return toast('This friends invite is invalid.', 'warn');
+          value = url.searchParams.get('room') ?? DEFAULT_ROOM;
+        } catch {
+          return toast('Enter a valid room code or invite link.', 'warn');
+        }
       }
-      const room = sanitizeRoom(v);
+      if (friendsInvite && !globalThis.crypto?.subtle) return toast('Friends rooms require HTTPS or localhost.', 'warn');
+      const room = friendsInvite ? DEFAULT_ROOM : sanitizeRoom(value);
       if (!room) return toast('Room codes are 3–24 letters, numbers or dashes.', 'warn');
-      await switchRoom(room);
+      await switchRoom(room, friendsInvite);
       play('join');
-      toast(`Joined room “${room}”`, 'success');
+      toast(friendsInvite ? 'Joined friends room.' : `Joined room “${room}”`, 'success');
       render();
     };
     joinInput.addEventListener('keydown', (e) => e.key === 'Enter' && join());
@@ -44,10 +51,18 @@ export function openFriends() {
             { class: 'player-row' },
             c,
             h('div', { class: 'pname' }, name, h('small', { text: p.map === 'union' ? 'In the Student Union' : 'On campus' })),
-            btn('⭐', isFavorite(p.id) ? 'Remove favorite' : 'Add to favorites (this session)', isFavorite(p.id), () => toggleFavorite(p.id, name)),
-            btn(isMuted(p.id) ? '🔇' : '🔈', isMuted(p.id) ? 'Unmute' : 'Mute chat', isMuted(p.id), () => toggleMute(p.id)),
-            btn('🚫', isBlocked(p.id) ? 'Unblock' : 'Block (hide player & chat for you)', isBlocked(p.id), () => toggleBlock(p.id)),
-            btn('⚑', 'Report', false, () => openReport(p.id, name)),
+            h(
+              'div',
+              { class: 'player-actions' },
+              net?.canMessage(p.id) && !isBlocked(p.id) ? btn('💬', `Message ${name} privately`, false, () => {
+                closeModal();
+                bus.emit('openDirectChat', p.id, name);
+              }) : null,
+              btn('⭐', isFavorite(p.id) ? 'Remove favorite' : 'Add to favorites (this session)', isFavorite(p.id), () => toggleFavorite(p.id, name)),
+              btn(isMuted(p.id) ? '🔇' : '🔈', isMuted(p.id) ? 'Unmute' : 'Mute chat', isMuted(p.id), () => toggleMute(p.id)),
+              btn('🚫', isBlocked(p.id) ? 'Unblock' : 'Block (hide player & chat for you)', isBlocked(p.id), () => toggleBlock(p.id)),
+              btn('⚑', 'Report', false, () => openReport(p.id, name)),
+            ),
           );
         })
       : [h('div', { class: 'note', text: session.playing ? 'No one else is here yet. Share your invite link so a friend can join you!' : 'Press PLAY to see who is online in this room.' })];
@@ -55,7 +70,7 @@ export function openFriends() {
     const favs = listFavorites();
     body.replaceChildren(
       h('div', { class: 'section-title', text: '🔗 Invite a friend' }),
-      h('div', { class: 'row' }, h('span', { class: 'muted', text: 'Room' }), h('span', { class: 'room-code', text: session.room })),
+      h('div', { class: 'row' }, h('span', { class: 'muted', text: 'Room' }), h('span', { class: 'room-code', text: session.friendsInvite ? 'Friends only' : session.room })),
       h(
         'div',
         { class: 'row', style: 'margin-top:10px' },
@@ -78,18 +93,18 @@ export function openFriends() {
           {
             class: 'btn light',
             onclick: async () => {
-              const room = 'ub-' + randomId(5);
-              await switchRoom(room);
+              if (!globalThis.crypto?.subtle) return toast('Friends rooms require HTTPS or localhost.', 'warn');
+              await switchRoom(DEFAULT_ROOM, makeFriendsInvite());
               play('join');
-              toast(`New room “${room}” created — copy the link to invite friends.`, 'success', 4500);
+              toast('Friends room created. Copy the invite link to bring friends in.', 'success', 4500);
               render();
             },
-            text: '✨ New private room',
+            text: '🔒 New friends room',
           },
         ),
       ),
       h('div', { class: 'section-title', text: '🚪 Join a friend’s room' }),
-      h('div', { class: 'row' }, joinInput, h('button', { class: 'btn gold', onclick: join, text: 'Join' }), session.room !== DEFAULT_ROOM ? h('button', { class: 'btn ghost', onclick: async () => { await switchRoom(DEFAULT_ROOM); render(); }, text: 'Back to public campus' }) : null),
+      h('div', { class: 'row' }, joinInput, h('button', { class: 'btn gold', onclick: join, text: 'Join' }), (session.friendsInvite || session.room !== DEFAULT_ROOM) ? h('button', { class: 'btn ghost', onclick: async () => { await switchRoom(DEFAULT_ROOM); render(); }, text: 'Back to public campus' }) : null),
       h('div', { class: 'section-title', text: `🟢 Online in this room (${players.length + (session.playing ? 1 : 0)})` }),
       ...rows,
       favs.length ? h('div', { class: 'section-title', text: '⭐ Favorites (this session only)' }) : '',
@@ -97,7 +112,7 @@ export function openFriends() {
       h(
         'div',
         { class: 'note', style: 'margin-top:14px' },
-        'Favorites, mute and block are saved only in this browser tab. Guest identities are temporary — there are no permanent accounts or friend lists yet.',
+        'Anyone with a friends-room invite can join and read its chat. Use 💬 next to an online player for a one-to-one message. Favorites are saved in this tab.',
       ),
       !ONLINE_ENABLED ? h('div', { class: 'note warn', style: 'margin-top:8px', text: 'Local mode: Supabase is not configured, so rooms only connect browser tabs on this device.' }) : '',
     );

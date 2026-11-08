@@ -4,7 +4,8 @@ import { isCoopSolved } from '../src/activities/coop';
 import { hits, isInFrontOf, isoToScreen, moveWithCollision, screenToIso } from '../src/game/iso';
 import { ChatRateLimiter, IncomingFloodGuard, sanitizeMessage } from '../src/social/chatSafety';
 import { parseMeta, parseMove } from '../src/net/multiplayer';
-import { BUILDINGS, doorOutside } from '../src/game/maps/buildings';
+import { BUILDINGS, BUILDING_BY_ID, doorOutside, doorTrigger } from '../src/game/maps/buildings';
+import { COOP, LAKE } from '../src/game/maps/campus';
 import { buildMap, MAP_IDS } from '../src/game/maps/registry';
 
 describe('isometric math', () => {
@@ -124,10 +125,9 @@ describe('maps', () => {
   const maps = MAP_IDS.map((id) => buildMap(id));
   const free = (map: ReturnType<typeof buildMap>, x: number, y: number) => !map.colliders.some((c) => hits(c, x, y, 0.28));
 
-  it('has the campus plus one interior for each of the 19 buildings', () => {
-    expect(BUILDINGS).toHaveLength(19);
-    expect(MAP_IDS).toHaveLength(20);
-    expect(new Set(MAP_IDS).size).toBe(20);
+  it('has a registered interior for every enterable building', () => {
+    for (const b of BUILDINGS) expect(MAP_IDS).toContain(b.id);
+    expect(new Set(MAP_IDS).size).toBe(MAP_IDS.length);
   });
 
   for (const map of maps) {
@@ -146,9 +146,12 @@ describe('maps', () => {
   }
 
   it('every interior has an exit back to campus and a passport stamp', () => {
-    for (const map of maps.filter((m) => m.id !== 'campus')) {
+    for (const b of BUILDINGS) {
+      const map = maps.find((m) => m.id === b.id)!;
       expect(map.triggers.some((t) => t.action.type === 'goto' && t.action.to === 'campus')).toBe(true);
-      expect(map.interactables.some((i) => i.action.type === 'stamp' && i.action.stamp === map.id)).toBe(true);
+      if (b.passport !== false) {
+        expect(map.interactables.some((i) => i.action.type === 'stamp' && i.action.stamp === map.id)).toBe(true);
+      }
     }
   });
 
@@ -157,7 +160,74 @@ describe('maps', () => {
     for (const b of BUILDINGS) {
       const o = doorOutside(b);
       expect(free(campus, o.x, o.y), b.id).toBe(true);
+      const trigger = doorTrigger(b);
+      const x = b.door.side === 'e' ? trigger.x1 - 0.05 : o.x;
+      const y = b.door.side === 's' ? trigger.y1 - 0.05 : o.y;
+      expect(free(campus, x, y), b.id + ' door trigger').toBe(true);
       expect(campus.triggers.some((t) => t.action.type === 'goto' && t.action.to === b.id)).toBe(true);
+    }
+  });
+
+  it('follows the north-up campus plan and keeps the lake and co-op area playable', () => {
+    const b = (id: string) => BUILDING_BY_ID.get(id)!;
+    expect(b('ellicott').y0).toBeLessThan(b('greiner').y0);
+    expect(b('greiner').y0).toBeLessThan(b('davis').y0);
+    expect(b('governors').x0).toBeLessThan(b('capen').x0);
+    expect(b('capen').x0).toBeLessThan(b('union').x0);
+    expect(b('union').x0).toBeLessThan(b('cfa').x0);
+    expect(b('cfa').x0).toBeLessThan(b('arena').x0);
+    expect(b('arena').x0).toBeLessThan(b('stadium').x0);
+    expect(LAKE.x).toBeGreaterThan(b('commons').x0);
+    expect(LAKE.y).toBeLessThan(b('arena').y0);
+    expect(free(maps[0], LAKE.x, LAKE.y)).toBe(false);
+    for (const spot of [COOP.plateA, COOP.plateB, COOP.portal]) {
+      expect(free(maps[0], spot.x, spot.y)).toBe(true);
+    }
+  });
+
+  it('connects floors without spawning inside furniture or an exit', () => {
+    for (const map of maps) {
+      const links = [...map.triggers, ...map.interactables];
+      for (const { action } of links) {
+        if (action.type !== 'enter' && action.type !== 'goto') continue;
+        const destination = maps.find((m) => m.id === action.to)!;
+        expect(destination?.id, map.id + ' to ' + action.to).toBe(action.to);
+        const { x, y } = action.spawn ?? destination.spawn;
+        expect(free(destination, x, y), map.id + ' to ' + action.to).toBe(true);
+        expect(destination.triggers.some((t) => x >= t.x0 && x <= t.x1 && y >= t.y0 && y <= t.y1)).toBe(false);
+      }
+    }
+  });
+
+  it('leaves a walkable route from each entrance to its cashiers and interior passages', () => {
+    for (const map of maps.filter((m) => m.id !== 'campus')) {
+      const stops = [
+        ...map.props.flatMap((p) => p.act?.kind === 'checkout'
+          ? [{ x: p.gx, y: p.gy, reach: p.reach ?? 1.3, name: p.act.label }] : []),
+        ...map.interactables.flatMap((p) => p.action.type === 'enter'
+          ? [{ x: p.gx, y: p.gy, reach: p.radius, name: p.prompt }] : []),
+      ];
+      if (!stops.length) continue;
+      const todo = [{ x: 0, y: 0 }];
+      const seen = new Set(['0,0']);
+      const step = 0.25;
+      for (let i = 0; i < todo.length && stops.length; i++) {
+        const here = todo[i];
+        const x = map.spawn.x + here.x * step;
+        const y = map.spawn.y + here.y * step;
+        for (let j = stops.length - 1; j >= 0; j--) {
+          if (Math.hypot(x - stops[j].x, y - stops[j].y) < stops[j].reach) stops.splice(j, 1);
+        }
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const next = { x: here.x + dx, y: here.y + dy };
+          const key = next.x + ',' + next.y;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const moved = moveWithCollision(x, y, dx * step, dy * step, 0.28, map.colliders, map);
+          if (moved.x !== x || moved.y !== y) todo.push(next);
+        }
+      }
+      expect(stops.map((s) => s.name), map.id).toEqual([]);
     }
   });
 
@@ -165,7 +235,7 @@ describe('maps', () => {
     for (const map of maps)
       for (const p of map.props) {
         if (!p.act) continue;
-        expect(['sit', 'lie', 'eat', 'use']).toContain(p.act.kind);
+        expect(['sit', 'lie', 'take', 'checkout', 'use']).toContain(p.act.kind);
         const act = p.act;
         if (act.kind === 'use' && act.use === 'whiteboard') expect(map.boards?.some((b) => b.id === act.board)).toBe(true);
       }

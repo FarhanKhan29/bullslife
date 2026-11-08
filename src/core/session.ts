@@ -8,6 +8,8 @@ import { Emitter } from './emitter';
 import { getGuestId } from './storage';
 import { DEFAULT_ROOM } from './config';
 import { Multiplayer } from '../net/multiplayer';
+import { readFriendsInvite } from '../social/privateChat';
+import type { ShopId } from '../game/shops';
 import type { MapId } from '../game/maps/types';
 
 export type Bus = {
@@ -18,10 +20,15 @@ export type Bus = {
   appearance: (a: Appearance) => void;
   /** UI → scene */
   localChat: (text: string) => void;
+  openDirectChat: (id: string, name: string) => void;
+  roomChanged: () => void;
   localEmote: (e: number) => void;
   photo: () => void;
   /** UI → scene: same as pressing E (used by the on-screen prompt button). */
   interact: () => void;
+  useItem: () => void;
+  dropItem: () => void;
+  checkout: (shop: ShopId, admit?: () => void) => void;
   openPanel: (panel: 'passport' | 'friends' | 'character' | 'settings' | 'menu') => void;
   /** game → UI: modal info card */
   info: (text: string) => void;
@@ -38,6 +45,7 @@ export const session = {
   appearance: loaded.appearance,
   isNewPlayer: loaded.isNew,
   room: sanitizeRoom(new URLSearchParams(location.search).get('room')) ?? DEFAULT_ROOM,
+  friendsInvite: readFriendsInvite(location.hash),
   playing: false,
   net: null as Multiplayer | null,
 };
@@ -69,19 +77,20 @@ export function getNet(): Multiplayer {
   return session.net;
 }
 
-export function inviteLink(room = session.room): string {
+export function inviteLink(): string {
   const url = new URL(location.href);
   url.search = '';
   url.hash = '';
-  url.searchParams.set('room', room);
+  if (session.friendsInvite) url.hash = 'friends=' + session.friendsInvite;
+  else if (session.room !== DEFAULT_ROOM) url.searchParams.set('room', session.room);
   return url.toString();
 }
 
-export async function switchRoom(room: string) {
+export async function switchRoom(room: string, friendsInvite: string | null = null) {
+  if (room === session.room && friendsInvite === session.friendsInvite) return;
   session.room = room;
-  const url = new URL(location.href);
-  if (room === DEFAULT_ROOM) url.searchParams.delete('room');
-  else url.searchParams.set('room', room);
-  history.replaceState(null, '', url);
-  if (session.playing) await getNet().connect(room);
+  session.friendsInvite = friendsInvite;
+  history.replaceState(null, '', inviteLink());
+  bus.emit('roomChanged');
+  if (session.playing) await getNet().connect(room, friendsInvite);
 }

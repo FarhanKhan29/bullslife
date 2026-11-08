@@ -5,7 +5,7 @@ import { BUILDINGS } from '../game/maps/buildings';
 
 export type StampId = string; // building id
 
-export const STAMPS: { id: StampId; name: string; emoji: string; hint: string; color: string }[] = BUILDINGS.map((b) => ({
+export const STAMPS: { id: StampId; name: string; emoji: string; hint: string; color: string }[] = BUILDINGS.filter((b) => b.passport !== false).map((b) => ({
   id: b.id,
   name: b.name,
   emoji: b.emoji,

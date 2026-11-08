@@ -14,7 +14,7 @@ import type { ItemId } from './maps/types';
 export type Pose = 'stand' | 'sit' | 'lie';
 
 const SHEET_SCALE = 3;
-const DISPLAY_SCALE = 1.3 / SHEET_SCALE;
+const DISPLAY_SCALE = 0.97 / SHEET_SCALE;
 export const EMOTES = [
   { emoji: '👋', label: 'Hello!' },
   { emoji: '🎉', label: 'Celebrate' },
@@ -63,14 +63,14 @@ export class Avatar extends Phaser.GameObjects.Container {
     this.isLocal = isLocal;
     this.texKey = ensureAvatarTexture(scene, look);
     if (isLocal) {
-      this.ring = scene.add.ellipse(0, 0, 34, 14, 0xffd75e, 0.0).setStrokeStyle(2, 0xffd75e, 0.85);
+      this.ring = scene.add.ellipse(0, 0, 28, 12, 0xffd75e, 0.0).setStrokeStyle(2, 0xffd75e, 0.85);
       this.add(this.ring);
     }
     this.sprite = scene.add.sprite(0, 0, this.texKey, 'front_0');
     this.sprite.setOrigin(0.5, 46 / 48);
     this.sprite.setScale(DISPLAY_SCALE);
     this.nameTag = scene.add
-      .text(0, -66, look.name, {
+      .text(0, -51, look.name, {
         fontFamily: 'Nunito, system-ui, sans-serif',
         fontSize: '12px',
         fontStyle: 'bold',
@@ -107,8 +107,8 @@ export class Avatar extends Phaser.GameObjects.Container {
     this.animTime += dtMs;
     if (this.pose === 'lie') {
       // lying on a bed: rotate the idle sprite and puff out a few Zzz
-      this.sprite.setFrame('front_0').setFlipX(false).setAngle(-78).setPosition(-4, -14);
-      this.nameTag.setY(-44);
+      this.sprite.setFrame('front_0').setFlipX(false).setAngle(-78).setPosition(-4, -12);
+      this.nameTag.setY(-36);
       this.zzzTimer -= dtMs;
       if (this.zzzTimer <= 0) {
         this.zzzTimer = 1400;
@@ -121,12 +121,12 @@ export class Avatar extends Phaser.GameObjects.Container {
       const frame = sitting ? WALK_FRAMES + 1 : this.moving ? 1 + (Math.floor(this.animTime / 130) % WALK_FRAMES) : 0;
       this.sprite.setFrame(`${this.facing}_${frame}`).setAngle(0).setPosition(0, sitting ? -9 : 0);
       this.sprite.setFlipX(this.facing === 'side' && this.flip);
-      this.nameTag.setY(sitting ? -72 : -66);
+      this.nameTag.setY(sitting ? -54 : -51);
     }
     if (this.ring) this.ring.setAlpha(this.pose === 'stand' ? 0.55 + Math.sin(this.animTime / 300) * 0.25 : 0);
     if (this.itemText) {
-      const side = this.facing === 'side' ? (this.flip ? -12 : 12) : this.facing === 'back' ? -12 : 13;
-      this.itemText.setPosition(side, this.pose === 'sit' ? -30 : -24).setVisible(this.pose !== 'lie' && this.facing !== 'back');
+      const side = this.facing === 'side' ? (this.flip ? -9 : 9) : this.facing === 'back' ? -9 : 10;
+      this.itemText.setPosition(side, this.pose === 'sit' ? -24 : -19).setVisible(this.pose !== 'lie' && this.facing !== 'back');
     }
   }
 
@@ -141,7 +141,7 @@ export class Avatar extends Phaser.GameObjects.Container {
     this.itemText = null;
     if (item) {
       this.itemText = this.scene.add
-        .text(12, -24, ITEMS[item], { fontSize: '16px', fontFamily: 'system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif' })
+        .text(10, -19, ITEMS[item], { fontSize: '14px', fontFamily: 'system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif' })
         .setOrigin(0.5, 1)
         .setResolution(2);
       this.add(this.itemText);
@@ -157,6 +157,12 @@ export class Avatar extends Phaser.GameObjects.Container {
       .setResolution(2);
     this.add(t);
     this.scene.tweens.add({ targets: t, y: -110, alpha: 0, duration: 1100, onComplete: () => t.destroy() });
+  }
+
+  showBite(item: ItemId) {
+    const bite = this.scene.add.text(9, -20, ITEMS[item], { fontSize: '17px' }).setOrigin(0.5).setResolution(2);
+    this.add(bite);
+    this.scene.tweens.add({ targets: bite, x: 0, y: -33, alpha: 0, scale: 0.25, duration: 450, onComplete: () => bite.destroy() });
   }
 
   showBubble(text: string) {
@@ -185,7 +191,7 @@ export class Avatar extends Phaser.GameObjects.Container {
     g.lineStyle(1.5, 0x1b2433, 0.15);
     g.strokeRoundedRect(-w / 2, -h, w, h, 10);
     label.setPosition(0, -padY);
-    const c = this.scene.add.container(0, -88, [g, label]);
+    const c = this.scene.add.container(0, -69, [g, label]);
     c.setScale(0.6).setAlpha(0);
     this.scene.tweens.add({ targets: c, scale: 1, alpha: 1, duration: 180, ease: 'Back.Out' });
     this.add(c);

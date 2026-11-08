@@ -59,7 +59,7 @@ export function createMenu(actions: { play: () => void; character: () => void; f
         'div',
         { class: 'menu-foot' },
         modePill,
-        h('span', { class: 'pill', text: session.room === DEFAULT_ROOM ? '🏫 Public campus' : `🔒 Room: ${session.room}` }),
+        h('span', { class: 'pill', text: session.friendsInvite ? '🔒 Friends room' : session.room === DEFAULT_ROOM ? '🏫 Public campus' : `🏫 Room: ${session.room}` }),
         h('span', { text: 'UB Hacking 2026' }),
       ),
     ),

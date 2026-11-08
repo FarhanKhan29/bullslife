@@ -177,18 +177,18 @@ export function studentUnion(): BuildingSpec {
         cylPatch(ctx, P, cx, cy, R, a0 + 0.01, a1 - 0.01, 64, 70, green, '#1d332c');
       }
       // main entrance (south): glass doors under a canopy
-      const da = (Math.PI * 3) / 4;
-      cylPatch(ctx, P, cx, cy, R, da - 0.2, da + 0.2, 0, 36, '#2e4a44', '#16241f');
+      const da = Math.acos((5.8 - cx) / R);
+      cylPatch(ctx, P, cx, cy, R, da - 0.2, da + 0.2, 0, 44, '#2e4a44', '#16241f');
       for (let i = 1; i < 6; i++) {
         const am = da - 0.2 + (0.4 * i) / 6;
         ctx.strokeStyle = '#9fc9c0';
         ctx.lineWidth = 0.6;
         ctx.beginPath();
         ctx.moveTo(...cylPoint(P, cx, cy, R, am, 2));
-        ctx.lineTo(...cylPoint(P, cx, cy, R, am, 34));
+        ctx.lineTo(...cylPoint(P, cx, cy, R, am, 42));
         ctx.stroke();
       }
-      cylPatch(ctx, P, cx, cy, R + 0.35, da - 0.26, da + 0.26, 38, 42, '#f2efe8', '#9a958c');
+      cylPatch(ctx, P, cx, cy, R + 0.35, da - 0.26, da + 0.26, 46, 50, '#f2efe8', '#9a958c');
       // warm light spill at the doors
       ctx.save();
       ctx.globalAlpha = 0.3;
@@ -323,10 +323,7 @@ export function capenHall(): BuildingSpec {
       // projecting central brick pier on the south face
       isoBox(ctx, P, 4.3, D - 0.2, 1.4, 0.5, 0, 100, shade(brick, 0.05));
       courses(ctx, (u, v) => P(u, D + 0.3, v), 4.3, 5.7, 24, 100, 3, mortar, 0.35);
-      // entrance + small blue name sign
-      quad(ctx, [P(3.4, D - 0.6, 0), P(4.2, D - 0.6, 0), P(4.2, D - 0.6, 20), P(3.4, D - 0.6, 20)], '#7fa9c6', '#1f2830', 0.8);
-      quad(ctx, [P(4.45, D + 0.3, 30), P(5.55, D + 0.3, 30), P(5.55, D + 0.3, 37), P(4.45, D + 0.3, 37)], '#1f5fbf', '#0b2f5a', 0.6);
-      textOnSouth(ctx, P, 5, D + 0.3, 33.5, 'Capen Hall', 'bold 5px system-ui, sans-serif', '#ffffff');
+      drawDoor(ctx, P, 's', 0, D, 3.15, 'Capen Hall');
     },
   };
 }
@@ -598,21 +595,22 @@ export function drawTier(ctx: Ctx, P: Proj, t: Tier, mat: Mat) {
 export function drawDoor(ctx: Ctx, P: Proj, side: 's' | 'e', x: number, y: number, u: number, name?: string, color = '#1f5fbf') {
   const F: Face = side === 's' ? (a, v) => P(x + a, y, v) : (a, v) => P(x, y + a, v);
   const w = 1.4;
-  poly(ctx, [F(u, 0), F(u + w, 0), F(u + w, 30), F(u, 30)], '#2c3e50', '#111', 0.8);
-  poly(ctx, [F(u + 0.08, 0), F(u + w / 2 - 0.03, 0), F(u + w / 2 - 0.03, 26), F(u + 0.08, 26)], '#9fd3f0', '#35506a', 0.6);
-  poly(ctx, [F(u + w / 2 + 0.03, 0), F(u + w - 0.08, 0), F(u + w - 0.08, 26), F(u + w / 2 + 0.03, 26)], '#8cc6e8', '#35506a', 0.6);
+  const height = 44;
+  poly(ctx, [F(u, 0), F(u + w, 0), F(u + w, height), F(u, height)], '#2c3e50', '#111', 0.8);
+  poly(ctx, [F(u + 0.08, 0), F(u + w / 2 - 0.03, 0), F(u + w / 2 - 0.03, height - 4), F(u + 0.08, height - 4)], '#9fd3f0', '#35506a', 0.6);
+  poly(ctx, [F(u + w / 2 + 0.03, 0), F(u + w - 0.08, 0), F(u + w - 0.08, height - 4), F(u + w / 2 + 0.03, height - 4)], '#8cc6e8', '#35506a', 0.6);
   // canopy
   const out = side === 's' ? (a: number, v: number) => P(x + a, y + 0.6, v) : (a: number, v: number) => P(x + 0.6, y + a, v);
-  poly(ctx, [F(u - 0.2, 33), F(u + w + 0.2, 33), out(u + w + 0.2, 31), out(u - 0.2, 31)], '#e8e4dc', '#8f8a84', 0.7);
+  poly(ctx, [F(u - 0.2, height + 3), F(u + w + 0.2, height + 3), out(u + w + 0.2, height + 1), out(u - 0.2, height + 1)], '#e8e4dc', '#8f8a84', 0.7);
   // light spill
   ctx.save();
   ctx.globalAlpha = 0.3;
   poly(ctx, [F(u, 0), F(u + w, 0), out(u + w + 0.3, 0), out(u - 0.3, 0)], '#ffe7a8');
   ctx.restore();
   if (name) {
-    poly(ctx, [F(u - 0.3, 37), F(u + w + 0.3, 37), F(u + w + 0.3, 45), F(u - 0.3, 45)], color, '#0b2f5a', 0.6);
+    poly(ctx, [F(u - 0.3, height + 7), F(u + w + 0.3, height + 7), F(u + w + 0.3, height + 15), F(u - 0.3, height + 15)], color, '#0b2f5a', 0.6);
     ctx.save();
-    const [tx, ty] = F(u + w / 2, 41);
+    const [tx, ty] = F(u + w / 2, height + 11);
     ctx.translate(tx, ty);
     ctx.transform(1, side === 's' ? 0.5 : -0.5, 0, 1, 0, 0);
     ctx.fillStyle = '#ffffff';
@@ -990,6 +988,10 @@ export function theCommons(): BuildingSpec {
     },
   };
 }
+
+export const bookstore = () =>
+  slab({ w: 7, d: 4, mat: 'brick', name: 'University Bookstore', door: { side: 's', u: 2.8 },
+    tiers: [{ x: 0, y: 0, w: 7, d: 4, h: 43, win: 'ribbon', floorH: 22 }] });
 
 export function crossroads(): BuildingSpec {
   const W = 8;

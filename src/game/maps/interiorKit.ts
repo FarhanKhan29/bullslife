@@ -4,9 +4,10 @@
  * a passport stamp and the exit back to campus.
  */
 import type { Facing } from '../../character/avatarRenderer';
+import { SHOPS, type ShopId } from '../shops';
 import type { Collider } from '../iso';
 import { BUILDING_BY_ID, doorOutside } from './buildings';
-import type { FloorDecor, Ground, InteriorStyle, MapDef, PropAct, WallItem } from './types';
+import type { FloorDecor, Ground, InteriorStyle, MapDef, MapId, PropAct, WallItem } from './types';
 
 export interface AddOpts {
   /** Collider: rectangle size [w, d] around the prop, a circle radius, or none. */
@@ -14,6 +15,7 @@ export interface AddOpts {
   r?: number;
   act?: PropAct;
   reach?: number;
+  label?: string;
 }
 
 export class Room {
@@ -81,7 +83,7 @@ export class Room {
     let collider: Collider | undefined;
     if (o.rect) collider = { kind: 'rect', x0: gx - o.rect[0] / 2, y0: gy - o.rect[1] / 2, x1: gx + o.rect[0] / 2, y1: gy + o.rect[1] / 2 };
     else if (o.r) collider = { kind: 'circle', x: gx, y: gy, r: o.r };
-    this.map.props.push({ tex, gx, gy, collider, act: o.act, reach: o.reach });
+    this.map.props.push({ tex, gx, gy, collider, act: o.act, reach: o.reach, label: o.label });
     if (collider) this.map.colliders.push(collider);
     return this;
   }
@@ -110,6 +112,26 @@ export class Room {
 
   info(id: string, gx: number, gy: number, prompt: string, text: string, radius = 1.3) {
     this.map.interactables.push({ id, gx, gy, radius, prompt, action: { type: 'info', text } });
+    return this;
+  }
+
+  counter(shop: ShopId, gx: number, gy: number, label: string) {
+    const title = shop === 'mealPlans' ? 'UB Card Office'
+      : shop === 'crossroads' || shop === 'governorsDining' ? 'Dining Cashier'
+      : SHOPS[shop].name.split(' · ')[0];
+    this.add('cashier', gx, gy - 0.78, { r: 0.28, label: title });
+    return this.add('checkout', gx, gy, { rect: [1.4, 0.7], reach: 1.45, act: { kind: 'checkout', shop, label } });
+  }
+
+  link(gx: number, gy: number, label: string, to: MapId, spawn?: { x: number; y: number }) {
+    this.map.props.push({ tex: 'waypoint', gx, gy, label });
+    this.map.interactables.push({ id: 'link-' + to, gx, gy, radius: 1.45, prompt: label, action: { type: 'enter', to, spawn } });
+    return this;
+  }
+
+  exitTo(name: string, to: MapId, spawn: { x: number; y: number }) {
+    this.map.name = name;
+    this.map.triggers[0].action = { type: 'goto', to, spawn };
     return this;
   }
 

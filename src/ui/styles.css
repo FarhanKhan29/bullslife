@@ -621,7 +621,7 @@ select {
 .prompt {
   position: fixed;
   left: 50%;
-  bottom: 96px;
+  bottom: 145px;
   transform: translateX(-50%);
   background: rgba(255, 251, 243, 0.97);
   color: var(--ink);
@@ -784,6 +784,53 @@ select {
   margin: 4px 0;
 }
 
+/* ---------- inventory and checkout ---------- */
+.inventory-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 82px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  padding: 5px;
+  background: rgba(14, 29, 51, 0.9);
+  border-radius: 13px;
+  box-shadow: 0 5px 16px #0003;
+}
+.inventory-bar button {
+  position: relative;
+  min-width: 32px;
+  min-height: 36px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #fff;
+  background: #ffffff1f;
+  font: 800 12px var(--font);
+}
+.inventory-bar .inventory-slot {
+  width: 37px;
+  padding-top: 8px;
+  font-size: 18px;
+}
+.inventory-slot small {
+  position: absolute;
+  top: 1px;
+  left: 3px;
+  font-size: 9px;
+  color: #dce8fb;
+}
+.inventory-bar button[aria-pressed="true"] {
+  border-color: var(--gold);
+  background: #435474;
+}
+.inventory-bar button:disabled { opacity: 0.45; }
+.checkout-balance { font-weight: 800; color: var(--ub-dark); }
+.checkout-row { border-top: 1px solid #e3dece; padding: 10px 0; }
+.checkout-row .row { margin-top: 6px; }
+.checkout-row button:disabled { opacity: 0.5; cursor: default; }
+
 /* ---------- chat ---------- */
 .chat {
   position: fixed;
@@ -814,6 +861,21 @@ select {
   width: 100%;
   text-align: left;
 }
+.chat-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-scope {
+  margin: 0 8px 6px;
+  padding: 5px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: #253650;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+}
 .chat-head .unread {
   background: var(--danger);
   border-radius: 99px;
@@ -832,6 +894,7 @@ select {
   line-height: 1.35;
   scrollbar-width: thin;
 }
+.chat.collapsed .chat-scope,
 .chat.collapsed .chat-log,
 .chat.collapsed .chat-form {
   display: none;
@@ -907,6 +970,20 @@ select {
   display: block;
   color: var(--muted);
   font-size: 12px;
+}
+.player-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+@media (max-width: 440px) {
+  .player-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+  .player-row canvas {
+    grid-row: span 2;
+  }
 }
 .icon-btn {
   border: 0;
@@ -1142,6 +1219,11 @@ body.photo-mode #ui {
   }
 }
 @media (max-width: 1100px) {
+  .inventory-bar {
+    left: auto;
+    right: 14px;
+    transform: none;
+  }
   .emote-bar {
     left: auto;
     right: 14px;
@@ -1151,7 +1233,7 @@ body.photo-mode #ui {
     left: auto;
     right: 14px;
     transform: none;
-    bottom: 84px;
+    bottom: 139px;
     animation: none;
   }
 }
@@ -1160,7 +1242,11 @@ body.photo-mode #ui {
     height: 120px;
   }
   .chat {
-    bottom: 80px;
+    bottom: 118px;
+  }
+  .inventory-bar {
+    right: 10px;
+    bottom: 66px;
   }
   .emote-bar {
     left: auto;
@@ -1174,7 +1260,7 @@ body.photo-mode #ui {
     font-size: 19px;
   }
   .prompt {
-    bottom: 220px;
+    bottom: 254px;
   }
   .hud-btn .label {
     display: none;

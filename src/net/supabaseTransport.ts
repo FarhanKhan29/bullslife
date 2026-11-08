@@ -8,7 +8,7 @@ import { createClient, type RealtimeChannel, type SupabaseClient } from '@supaba
 import { SUPABASE_ANON_KEY, SUPABASE_PRIVATE_CHANNELS, SUPABASE_URL } from '../core/config';
 import type { NetStatus, PlayerMeta, Transport } from './types';
 
-export const NET_EVENTS = ['move', 'chat', 'emote', 'hello', 'coop', 'fx', 'board'] as const;
+export const NET_EVENTS = ['move', 'chat', 'sealed-chat', 'emote', 'hello', 'coop', 'fx', 'board'] as const;
 
 let client: SupabaseClient | null = null;
 function getClient(): SupabaseClient {
@@ -25,6 +25,7 @@ export class SupabaseTransport implements Transport {
   onEvent: (event: string, payload: Record<string, unknown>) => void = () => {};
   onStatus: (status: NetStatus) => void = () => {};
 
+  private closed = false;
   private channel: RealtimeChannel | null = null;
   private meta: PlayerMeta | null = null;
 
@@ -44,6 +45,7 @@ export class SupabaseTransport implements Transport {
       if (session) await sb.realtime.setAuth(session.access_token);
     }
 
+    if (this.closed) return;
     const channel = sb.channel(`room:${room}`, {
       config: {
         presence: { key: meta.id },
@@ -84,7 +86,7 @@ export class SupabaseTransport implements Transport {
 
   updateMeta(meta: PlayerMeta): void {
     this.meta = meta;
-    void this.channel?.track(meta as unknown as Record<string, unknown>);
+    if (this.channel?.state === 'joined') void this.channel.track(meta as unknown as Record<string, unknown>);
   }
 
   send(event: string, payload: Record<string, unknown>): void {
@@ -92,6 +94,7 @@ export class SupabaseTransport implements Transport {
   }
 
   async disconnect(): Promise<void> {
+    this.closed = true;
     if (!this.channel) return;
     const ch = this.channel;
     this.channel = null;
