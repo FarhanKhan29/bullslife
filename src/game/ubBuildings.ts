@@ -1024,3 +1024,34 @@ export function crossroads(): BuildingSpec {
     },
   };
 }
+
+// ------------------------------------------------------------------ Knox + Natural Sciences
+/** Knox Lecture Hall: windowless brick lecture block behind a glass atrium. */
+export const knoxHall = () =>
+  slab({
+    w: 4,
+    d: 6,
+    mat: 'brick',
+    name: 'Knox Hall',
+    door: { side: 's', u: 1.3 },
+    tiers: [
+      { x: 0, y: 0, w: 4, d: 4.2, h: 74, win: 'none' },
+      { x: 0, y: 4.2, w: 4, d: 1.8, h: 38, win: 'curtain', floorH: 19, mat: 'concrete' },
+    ],
+  });
+
+export const cookeHall = () =>
+  slab({ w: 8, d: 7, mat: 'concrete', name: 'Cooke Hall', door: { side: 's', u: 3.3 }, tiers: [{ x: 0, y: 0, w: 8, d: 7, h: 84, win: 'bands', floorH: 21 }] });
+
+export const hochstetterHall = () =>
+  slab({
+    w: 8,
+    d: 7,
+    mat: 'brick',
+    name: 'Hochstetter',
+    door: { side: 's', u: 3.3 },
+    tiers: [
+      { x: 0, y: 0, w: 8, d: 7, h: 88, win: 'ribbon', floorH: 22 },
+      { x: 2.2, y: 1.2, w: 3.6, d: 3.6, z: 88, h: 16, win: 'none', mat: 'concrete' },
+    ],
+  });

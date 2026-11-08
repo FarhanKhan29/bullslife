@@ -13,7 +13,7 @@ export const CAMPUS_H = 100;
 
 export const PLAZA = { x: 82, y: 69, r: 3.7 };
 export const LAKE = { x: 98, y: 39, rx: 18, ry: 12 };
-export const GARDEN = { x0: 16, y0: 84, x1: 28, y1: CAMPUS_H };
+export const GARDEN = { x0: 34, y0: 86, x1: 46, y1: CAMPUS_H };
 
 const PHOTO_BOOTH = { x: 87.5, y: 69 };
 const MAP_BOARD = { x: 80, y: 74 };
@@ -24,8 +24,8 @@ export const COOP = {
   plateB: { x: 72.5, y: 43.6 },
   plateRadius: 0.8,
   portal: { x: 69.7, y: 47.2 },
-  gardenSpawn: { x: 22, y: 91 },
-  gardenReturn: { x: 19, y: 87.5 },
+  gardenSpawn: { x: 40, y: 93 },
+  gardenReturn: { x: 37, y: 89.5 },
   area: { x: 69.5, y: 43.6, r: 7 },
 };
 
@@ -63,7 +63,29 @@ const PATHS: [number, number, number, number][] = [
   [110, 76, 113, 84], // Alumni Arena to stadium
   [111, 79, 128, 81],
   [126, 79, 128, 92],
+  [59, 69, 61, 73], // Knox Lecture Hall
+  [21, 75, 23, 91], // down to the Natural Sciences halls
+  [15, 90, 30, 91],
+  [15, 89, 17, 91], // Cooke Hall
+  [27, 89, 29, 91], // Hochstetter Hall
 ];
+
+/** Campus parking lots, roughly where the real ones sit. */
+export const PARKING_LOTS = [
+  { name: 'Jarvis Lot', x0: 36, y0: 42, x1: 46, y1: 52 },
+  { name: 'Governors Lot', x0: 8, y0: 63, x1: 22, y1: 70 },
+  { name: 'Cooke Lot', x0: 6, y0: 75, x1: 19, y1: 81 },
+  { name: 'Alumni Lot', x0: 96, y0: 86, x1: 108, y1: 97 },
+  { name: 'Center for the Arts Lot', x0: 102, y0: 62, x1: 114, y1: 71 },
+  { name: 'Ellicott Lot', x0: 89, y0: 8, x1: 101, y1: 20 },
+];
+
+/** Centre line (grid y) of each row of two-tile-deep parking stalls in a lot. */
+export function parkingRows(l: { y0: number; y1: number }): number[] {
+  const rows = [l.y0 + 1, l.y1 - 1];
+  for (let y = l.y0 + 6; y + 3 <= l.y1 - 3; y += 6) rows.push(y - 1, y + 1);
+  return rows;
+}
 
 function inEllipse(x: number, y: number, cx: number, cy: number, rx: number, ry: number) {
   const dx = (x - cx) / rx;
@@ -81,6 +103,7 @@ export function buildCampus(): MapDef {
       const cx = x + 0.5;
       const cy = y + 0.5;
       let g: Ground = 'grass';
+      for (const l of PARKING_LOTS) if (cx >= l.x0 && cx < l.x1 && cy >= l.y0 && cy < l.y1) g = 'asphalt';
       if (cx >= GARDEN.x0 && cx < GARDEN.x1 && cy >= GARDEN.y0 + 0.6) g = 'garden';
       for (const [x0, y0, x1, y1] of PATHS) if (cx >= x0 && cx < x1 && cy >= y0 && cy < y1) g = 'path';
       if (inEllipse(cx, cy, PLAZA.x, PLAZA.y, PLAZA.r, PLAZA.r)) g = 'plaza';
@@ -166,26 +189,38 @@ export function buildCampus(): MapDef {
     props.push({ tex: 'hedge', gx: GARDEN.x0, gy: y });
     props.push({ tex: 'hedge', gx: GARDEN.x1, gy: y });
   }
-  props.push({ tex: 'statue', gx: 22, gy: 95, collider: { kind: 'rect', x0: 21.1, y0: 94.4, x1: 22.9, y1: 95.6 } });
-  interactables.push({ id: 'statue', gx: 22, gy: 93.8, radius: 1.8, prompt: 'Admire the Golden Bull', action: { type: 'info', text: 'You found the Secret Garden! Only teams who work together get here.' } });
+  props.push({ tex: 'statue', gx: 40, gy: 97, collider: { kind: 'rect', x0: 39.1, y0: 96.4, x1: 40.9, y1: 97.6 } });
+  interactables.push({ id: 'statue', gx: 40, gy: 95.8, radius: 1.8, prompt: 'Admire the Golden Bull', action: { type: 'info', text: 'You found the Secret Garden! Only teams who work together get here.' } });
   props.push({ tex: 'portal_arch', gx: COOP.gardenReturn.x, gy: COOP.gardenReturn.y });
   triggers.push({ id: 'garden-return', x0: COOP.gardenReturn.x - 0.6, y0: COOP.gardenReturn.y - 0.3, x1: COOP.gardenReturn.x + 0.6, y1: COOP.gardenReturn.y + 0.4, action: { type: 'teleport', x: COOP.portal.x, y: COOP.portal.y + 1.4 } });
   colliders.push({ kind: 'circle', x: COOP.gardenReturn.x - 0.95, y: COOP.gardenReturn.y + 0.1, r: 0.25 });
   colliders.push({ kind: 'circle', x: COOP.gardenReturn.x + 0.95, y: COOP.gardenReturn.y - 0.1, r: 0.25 });
   for (const [x, y] of [
-    [18, 97],
-    [26, 89],
-    [26, 97],
-    [18.5, 92],
+    [36, 99],
+    [44, 91],
+    [44, 99],
+    [36.5, 94],
   ])
     props.push({ tex: 'tree_cherry_' + (Math.floor(x + y) % 2), gx: x, gy: y, collider: { kind: 'circle', x, y, r: 0.3 } });
   for (const [x, y] of [
-    [20, 91],
-    [24, 91],
-    [20, 97.5],
-    [24, 97.5],
+    [38, 93],
+    [42, 93],
+    [38, 99.4],
+    [42, 99.4],
   ])
     props.push({ tex: 'lantern', gx: x, gy: y, collider: { kind: 'circle', x, y, r: 0.15 } });
+
+  // ----- parking lots: a "P" sign at each lot and parked cars in about half the stalls
+  const parkRand = rng(716);
+  PARKING_LOTS.forEach((l, i) => {
+    props.push({ tex: 'sign_park_' + i, gx: l.x0 - 0.7, gy: l.y1 - 0.5, collider: { kind: 'circle', x: l.x0 - 0.7, y: l.y1 - 0.5, r: 0.25 } });
+    for (const row of parkingRows(l)) {
+      for (let x = l.x0 + 0.5; x < l.x1; x += 1) {
+        if (parkRand() > 0.5 || ground[Math.floor(row)]?.[Math.floor(x)] !== 'asphalt') continue;
+        props.push({ tex: 'car_' + Math.floor(parkRand() * 6), gx: x, gy: row, collider: { kind: 'rect', x0: x - 0.38, y0: row - 0.9, x1: x + 0.38, y1: row + 0.9 } });
+      }
+    }
+  });
 
   // ----- vegetation (deterministic scatter so everyone sees the same campus)
   const rand = rng(1846);

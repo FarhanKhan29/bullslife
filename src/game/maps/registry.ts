@@ -2,7 +2,7 @@
 import { buildCampus } from './campus';
 import { arenaInterior, cfaGalleryInterior, cfaInterior, cfaMainstageInterior, commonsInterior, crossroadsInterior, ellicottInterior, governorsInterior, greinerInterior, greinerSuiteInterior, stadiumInterior } from './interiorsLife';
 import { bellInterior, davisInterior, furnasInterior, ketterInterior } from './interiorsEng';
-import { baldyInterior, capenInterior, clemensInterior, lockwoodInterior, nortonInterior, silvermanInterior, talbertInterior, unionInterior } from './interiorsSpine';
+import { baldyInterior, capenInterior, clemensInterior, cookeInterior, hochstetterInterior, knoxInterior, lockwoodInterior, nortonInterior, silvermanInterior, talbertInterior, unionInterior } from './interiorsSpine';
 import { bookstoreInterior, ellicottFoodCourtInterior, governorsDiningInterior, oneWorldInterior, unionDiningInterior } from './interiorsRetail';
 import type { MapDef, MapId } from './types';
 
@@ -14,6 +14,9 @@ const INTERIORS: Record<string, () => MapDef> = {
   talbert: talbertInterior,
   baldy: baldyInterior,
   clemens: clemensInterior,
+  knox: knoxInterior,
+  cooke: cookeInterior,
+  hochstetter: hochstetterInterior,
   davis: davisInterior,
   bell: bellInterior,
   furnas: furnasInterior,

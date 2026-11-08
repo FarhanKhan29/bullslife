@@ -44,6 +44,9 @@ export const BUILDINGS: BuildingDef[] = [
   { id: 'talbert', name: 'Talbert Hall', emoji: '✏️', color: '#9a4a36', blurb: 'Visit International Student Services.', x0: 30, y0: 67, w: 7, d: 7, door: { side: 's', u: 2.8 }, ext: ub.talbertHall, labelH: 120 },
   { id: 'baldy', name: 'Baldy Hall', emoji: '💻', color: '#5e3226', blurb: 'Check in at the classroom podium.', x0: 58, y0: 75, w: 8, d: 7, door: { side: 's', u: 3.3 }, ext: ub.baldyHall, labelH: 135 },
   { id: 'clemens', name: 'Clemens Hall', emoji: '🖼️', color: '#7a4434', blurb: 'Visit the humanities seminar room.', x0: 79, y0: 77, w: 7, d: 8, door: { side: 's', u: 2.8 }, ext: ub.clemensHall, labelH: 190 },
+  { id: 'knox', name: 'Knox Lecture Hall', emoji: '🎤', color: '#7a4434', blurb: 'Take the stage in the big lecture hall.', x0: 58, y0: 63, w: 4, d: 6, door: { side: 's', u: 1.3 }, ext: ub.knoxHall, labelH: 105 },
+  { id: 'cooke', name: 'Cooke Hall', emoji: '🧪', color: '#8a9bb0', blurb: 'Sign in at the teaching lab.', x0: 12, y0: 82, w: 8, d: 7, door: { side: 's', u: 3.3 }, ext: ub.cookeHall, labelH: 112 },
+  { id: 'hochstetter', name: 'Hochstetter Hall', emoji: '🔬', color: '#3fae6b', blurb: 'Look through the biology lab microscope.', x0: 24, y0: 82, w: 8, d: 7, door: { side: 's', u: 3.3 }, ext: ub.hochstetterHall, labelH: 122 },
   // ---- engineering
   { id: 'davis', name: 'Davis Hall', emoji: '⚙️', color: '#3e7aa8', blurb: 'Meet the robot in the CSE lab.', x0: 57, y0: 37, w: 9, d: 8, door: { side: 's', u: 2.2, width: 1 }, ext: ub.davisHall, labelH: 160 },
   { id: 'bell', name: 'Bell Hall', emoji: '🔧', color: '#8a9bb0', blurb: 'Check in at the engineering lab.', x0: 59, y0: 56, w: 8, d: 7, door: { side: 's', u: 3.3 }, ext: ub.bellHall, labelH: 110 },

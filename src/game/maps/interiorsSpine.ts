@@ -248,3 +248,72 @@ export function clemensInterior(): MapDef {
   r.link(12.8, 9.7, 'Walk to Lockwood Library', 'lockwood', { x: 4.6, y: 3 });
   return r.done();
 }
+
+/** Knox Lecture Hall: one of the big tiered halls off the entrance atrium. */
+export function knoxInterior(): MapDef {
+  const r = new Room('knox', 18, 15, 'carpet', {
+    wall: '#ece4d6', wallSide: '#e0d6c4', trim: '#7a4434', base: '#b98a5a',
+    wallHeight: 135,
+    floorDecor: [{ kind: 'stage', x0: 0, y0: 0, x1: 18, y1: 3.2 }],
+    items: [
+      { wall: 'n', u: 2, w: 14, z: 42, h: 74, kind: 'screen', text: ['KNOX 110', 'Welcome to lecture, Bulls!'] },
+      { wall: 'w', u: 4.5, w: 2, z: 30, h: 44, kind: 'door' },
+      { wall: 'w', u: 9, w: 3, z: 40, h: 34, kind: 'board' },
+    ],
+  });
+  r.add('podium', 4.5, 1.8, { rect: [0.8, 0.6] });
+  r.stamp(4.5, 2.8, 'Take the stage at the podium', 1.2);
+  r.board('knox-board', 12.5, 1.4);
+  for (const y of [5, 6.5, 8, 9.5, 11]) {
+    for (let x = 1.5; x <= 7.5; x += 1) r.seat(y === 5 || y === 8 || y === 11 ? 'seatn_blue' : 'seatn_gold', x, y, 'back');
+    for (let x = 10.5; x <= 16.5; x += 1) r.seat(y === 5 || y === 8 || y === 11 ? 'seatn_blue' : 'seatn_gold', x, y, 'back');
+  }
+  return r.done();
+}
+
+/** Cooke Hall: Natural Sciences teaching labs. */
+export function cookeInterior(): MapDef {
+  const r = new Room('cooke', 16, 12, 'lino', {
+    wall: '#eef1f3', wallSide: '#dfe4e8', trim: '#5e7f6b', base: '#9aa3ad',
+    wallHeight: 125,
+    items: [
+      { wall: 'n', u: 1, w: 8, z: 86, h: 22, kind: 'sign', color: '#5e7f6b', text: ['NATURAL SCIENCES TEACHING LABS'] },
+      { wall: 'n', u: 10, w: 4.5, z: 30, h: 56, kind: 'window' },
+      { wall: 'w', u: 1, w: 4, z: 34, h: 46, kind: 'chalk' },
+      { wall: 'w', u: 7, w: 3, z: 40, h: 34, kind: 'poster', color: '#d94b4b', text: ['GOGGLES', 'ON!'] },
+    ],
+  });
+  r.add('desk_lamp', 2.4, 1.8, { rect: [1.4, 0.7] }).stamp(2.4, 2.8, 'Sign in at the teaching lab', 1.2);
+  for (const [x, y] of [[6, 3.6], [11, 3.6], [6, 7], [11, 7]]) {
+    r.add('lab_chem', x, y, { rect: [2, 0.8], act: { kind: 'use', use: 'microscope', label: 'Run an experiment', text: '🧪 The solution turned bright blue. Experiment complete!' } });
+    r.seat('stool_blue', x - 0.5, y + 0.75, 'back');
+    r.seat('stool_blue', x + 0.5, y + 0.75, 'back');
+  }
+  r.board('cooke-board', 3, 7.4);
+  r.add('plant', 15.2, 11.2, { r: 0.3 });
+  return r.done();
+}
+
+/** Hochstetter Hall: biology labs and a small classroom. */
+export function hochstetterInterior(): MapDef {
+  const r = new Room('hochstetter', 16, 12, 'lino', {
+    wall: '#eef1f3', wallSide: '#dfe4e8', trim: '#3fae6b', base: '#9aa3ad',
+    wallHeight: 125,
+    items: [
+      { wall: 'n', u: 1, w: 7, z: 86, h: 22, kind: 'sign', color: '#2f7d5b', text: ['BIOLOGICAL SCIENCES'] },
+      { wall: 'n', u: 9.5, w: 5, z: 30, h: 56, kind: 'window' },
+      { wall: 'w', u: 2, w: 3, z: 40, h: 36, kind: 'poster', color: '#3fae6b', text: ['CELL', 'BIOLOGY'] },
+      { wall: 'w', u: 7, w: 3, z: 40, h: 34, kind: 'board' },
+    ],
+  });
+  for (const [x, y] of [[3.4, 3.4], [8, 3.4], [3.4, 6.6], [8, 6.6]]) {
+    r.add('lab_micro', x, y, { rect: [2, 0.8], act: { kind: 'use', use: 'microscope', label: 'Use the microscope' } });
+    r.seat('stool_red', x, y + 0.75, 'back');
+  }
+  r.stamp(3.4, 2.5, 'Look through the biology lab microscope', 1.1);
+  r.add('shelf_y', 15.4, 4, { rect: [0.45, 1.8], act: { kind: 'use', use: 'book', label: 'Read a field guide' } });
+  r.add('plant', 12.6, 2, { r: 0.3 });
+  r.add('plant', 14, 9.6, { r: 0.3 });
+  r.board('hochstetter-board', 12.4, 6.4);
+  return r.done();
+}

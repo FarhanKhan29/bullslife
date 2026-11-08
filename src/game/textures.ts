@@ -8,7 +8,7 @@ import * as art from './art';
 import * as fur from './furniture';
 import type { ArtTexture } from './art';
 import { BUILDINGS } from './maps/buildings';
-import { GARDEN, LAKE, PLAZA } from './maps/campus';
+import { GARDEN, LAKE, PARKING_LOTS, PLAZA, parkingRows } from './maps/campus';
 import type { FloorDecor, Ground, InteriorStyle, MapDef, WallItem } from './maps/types';
 import { shade } from '../character/avatarRenderer';
 
@@ -142,7 +142,9 @@ export function registerAllTextures(scene: Phaser.Scene) {
   r('sparkle', art.sparkle());
   r('confetti', art.confettiPiece());
   r('leaf', art.leaf());
-  r('bird', art.bird());
+  r('goose', art.goose());
+  ['#d94b4b', '#005bbb', '#e9e6df', '#2b2f38', '#9aa3ad', '#f2a93b'].forEach((c, i) => r('car_' + i, art.car(c)));
+  PARKING_LOTS.forEach((l, i) => r('sign_park_' + i, art.signPost(['P  ' + l.name], '#1f5fbf')));
   r('squirrel', art.squirrel());
 }
 
@@ -243,7 +245,10 @@ export function renderGround(map: MapDef): GroundChunk[] {
     }
   }
 
-  if (map.id === 'campus') drawLake(ctx, P);
+  if (map.id === 'campus') {
+    drawLake(ctx, P);
+    drawParkingLines(ctx, P);
+  }
   if (map.interior) {
     for (const d of map.interior.floorDecor ?? []) drawFloorDecor(ctx, P, d);
     drawWalls(ctx, P, map, map.interior);
@@ -306,6 +311,9 @@ function drawTile(ctx: CanvasRenderingContext2D, P: Proj, map: MapDef, x: number
     }
     case 'garden':
       art.quad(ctx, pts, '#8fd47a', '#8fd47a', 0.6);
+      break;
+    case 'asphalt':
+      art.quad(ctx, pts, alt ? '#62666e' : '#5d6169', '#585c63', 0.5);
       break;
     case 'path': {
       // UB Academic Spine style hexagonal pavers
@@ -384,6 +392,22 @@ function drawTile(ctx: CanvasRenderingContext2D, P: Proj, map: MapDef, x: number
       art.quad(ctx, pts, '#4b5563', '#2b313a', 1);
       break;
   }
+}
+
+/** White stall lines for each parking lot. */
+function drawParkingLines(ctx: CanvasRenderingContext2D, P: Proj) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (const l of PARKING_LOTS) {
+    for (const row of parkingRows(l)) {
+      for (let x = l.x0; x <= l.x1; x++) {
+        ctx.moveTo(...P(x, row - 1));
+        ctx.lineTo(...P(x, row + 1));
+      }
+    }
+  }
+  ctx.stroke();
 }
 
 /** Lake LaSalle: a smooth shoreline drawn over the grass. */

@@ -663,13 +663,47 @@ export function leaf(): ArtTexture {
   });
 }
 
-export function bird(): ArtTexture {
-  return makeArt(20, 14, 10, 12, (ctx) => {
-    ellipse(ctx, 10, 12, 6, 2, 'rgba(0,0,0,0.2)');
-    ellipse(ctx, 9, 7, 6, 4, '#7a5a44', '#3b2a1e', 0.8);
-    ellipse(ctx, 14, 5, 3, 3, '#7a5a44', '#3b2a1e', 0.8);
-    quad(ctx, [[16.5, 5], [19.5, 6], [16.5, 6.5]], '#f2a93b');
-    ellipse(ctx, 14.6, 4.4, 0.7, 0.7, '#111');
+/** Canada goose: black neck and head, white chinstrap, brown body, pale chest. Faces right. */
+export function goose(): ArtTexture {
+  return makeArt(44, 40, 22, 36, (ctx) => {
+    ellipse(ctx, 22, 36, 13, 3.5, 'rgba(0,0,0,0.22)');
+    ctx.strokeStyle = '#2a2622';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(20, 28);
+    ctx.lineTo(19.5, 35);
+    ctx.moveTo(25, 28);
+    ctx.lineTo(25.5, 35);
+    ctx.stroke();
+    quad(ctx, [[3, 19], [11, 16], [12, 24]], '#1d1a17', '#0d0b09', 0.6); // black tail
+    ellipse(ctx, 11.5, 23.5, 4, 3, '#f4f1ea'); // white rump
+    ellipse(ctx, 21, 21, 13, 8.5, '#8a7660', '#4a3d30', 0.9);
+    ellipse(ctx, 18, 18.5, 8.5, 4, '#6f5d49'); // folded wing
+    ellipse(ctx, 29, 23, 5.5, 5.5, '#d9cfbf'); // pale chest
+    ctx.strokeStyle = '#1d1a17';
+    ctx.lineWidth = 4.6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(30, 19);
+    ctx.quadraticCurveTo(35, 13, 33, 6.5);
+    ctx.stroke();
+    ellipse(ctx, 34, 5.5, 4.2, 3.3, '#1d1a17');
+    quad(ctx, [[37.5, 4.2], [42, 5.7], [37.5, 7]], '#1d1a17');
+    ellipse(ctx, 33.4, 7, 2.2, 1.7, '#f4f1ea'); // white chinstrap
+    ellipse(ctx, 35.5, 4.5, 0.6, 0.6, '#ffffff');
+  });
+}
+
+/** A parked car, nose pointing along grid y. */
+export function car(color: string): ArtTexture {
+  return makeArt(90, 66, 45, 44, (ctx) => {
+    const P = projector(45, 44);
+    ellipse(ctx, 45, 46, 34, 16, 'rgba(0,0,0,0.2)');
+    for (const [x, y] of [[-0.42, -0.65], [0.34, -0.65], [-0.42, 0.45], [0.34, 0.45]]) isoBox(ctx, P, x, y, 0.08, 0.26, 0, 6, '#16181c');
+    isoBox(ctx, P, -0.38, -0.9, 0.76, 1.8, 3, 9, color);
+    isoBox(ctx, P, -0.3, -0.45, 0.6, 0.95, 12, 8, '#9fc7de', { top: shade(color, 0.12) });
+    quad(ctx, [P(-0.38, 0.9, 6), P(-0.16, 0.9, 6), P(-0.16, 0.9, 10), P(-0.38, 0.9, 10)], '#fff2b0');
+    quad(ctx, [P(0.16, 0.9, 6), P(0.38, 0.9, 6), P(0.38, 0.9, 10), P(0.16, 0.9, 10)], '#fff2b0');
   });
 }
 
