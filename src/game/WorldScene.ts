@@ -303,14 +303,18 @@ export class WorldScene extends Phaser.Scene {
         this.tweens.add({ targets: c, x: c.x + 2600, duration: 90000 + Math.random() * 30000, repeat: -1, onRepeat: () => (c.x = -2600) });
       }
     }
-    for (let i = 0; i < (high ? 12 : 4); i++) this.spawnCritter(i % 3 === 0 ? 'squirrel' : 'bird');
+    for (let i = 0; i < (high ? 18 : 9); i++) this.spawnCritter(i % 3 === 0 ? 'squirrel' : 'goose');
   }
 
-  private spawnCritter(tex: 'bird' | 'squirrel') {
+  private spawnCritter(tex: 'goose' | 'squirrel') {
     const pick = () => {
       for (let tries = 0; tries < 50; tries++) {
-        const x = 2 + Math.random() * (this.map.w - 4);
-        const y = 2 + Math.random() * (this.map.h - 4);
+        // Canada geese hang around Lake LaSalle
+        const angle = Math.random() * Math.PI * 2;
+        const ring = 1.08 + Math.random() * 0.35;
+        const byLake = tex === 'goose' && Math.random() < 0.75;
+        const x = byLake ? LAKE.x + Math.cos(angle) * LAKE.rx * ring : 2 + Math.random() * (this.map.w - 4);
+        const y = byLake ? LAKE.y + Math.sin(angle) * LAKE.ry * ring : 2 + Math.random() * (this.map.h - 4);
         const g = this.map.ground[Math.floor(y)]?.[Math.floor(x)];
         if ((g === 'grass' || g === 'plaza') && !this.map.colliders.some((c) => c.kind === 'rect' && x > c.x0 - 1 && x < c.x1 + 1 && y > c.y0 - 1 && y < c.y1 + 1)) return { x, y };
       }
@@ -323,7 +327,8 @@ export class WorldScene extends Phaser.Scene {
     const hop = () => {
       if (!img.active) return;
       const near = this.player && Math.hypot(this.player.gx - pos.x, this.player.gy - pos.y) < 2.2;
-      if (near && tex === 'bird') {
+      if (near && tex === 'goose') {
+        sfx('honk');
         this.tweens.add({
           targets: img,
           y: img.y - 260,
@@ -346,7 +351,7 @@ export class WorldScene extends Phaser.Scene {
         pos = { x: nx, y: ny };
         const n = isoToScreen(nx, ny);
         img.setFlipX(n.x < img.x);
-        this.tweens.add({ targets: img, x: n.x, y: n.y, duration: tex === 'squirrel' ? 380 : 260, ease: 'Sine.Out' });
+        this.tweens.add({ targets: img, x: n.x, y: n.y, duration: tex === 'squirrel' ? 380 : 620, ease: 'Sine.InOut' });
         this.tweens.add({ targets: img, scaleY: { from: o.s, to: o.s * 0.8 }, duration: 120, yoyo: true });
         img.setDepth(this.resolveDepth(nx, ny));
       }

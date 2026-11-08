@@ -92,7 +92,7 @@ To require an (anonymous) Supabase session before a client can join a room, foll
 | `1`–`5` | Emotes 👋 🎉 ❤️ ❓ ⭐ |
 
 Goals:
-- Collect all **19 Campus Passport stamps**. The University Bookstore is an extra stop.
+- Collect all **22 Campus Passport stamps**. The University Bookstore is an extra stop.
 - With a friend, stand on **switches A and B** near Davis Hall at the same time to open the portal to the **Secret Garden**.
 - Try the **photo booth** east of the fountain (saves a PNG on your device, never uploaded).
 

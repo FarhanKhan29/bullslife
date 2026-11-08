@@ -54,7 +54,7 @@ function tone(freq: number, start: number, dur: number, type: OscillatorType = '
   o.stop(start + dur + 0.05);
 }
 
-export type Sfx = 'click' | 'chat' | 'emote' | 'stamp' | 'success' | 'join' | 'door' | 'error' | 'shutter' | 'plate' | 'piano' | 'drums' | 'swish' | 'miss' | 'kick' | 'quake' | 'eat' | 'sit' | 'ping';
+export type Sfx = 'click' | 'chat' | 'emote' | 'stamp' | 'success' | 'join' | 'door' | 'error' | 'shutter' | 'plate' | 'piano' | 'drums' | 'swish' | 'miss' | 'kick' | 'quake' | 'eat' | 'sit' | 'ping' | 'honk';
 
 export function play(sfx: Sfx) {
   const c = ensure();
@@ -128,6 +128,10 @@ export function play(sfx: Sfx) {
     case 'sit':
       tone(220, t, 0.1, 'sine', 0.12);
       break;
+    case 'honk':
+      tone(320, t, 0.14, 'sawtooth', 0.09);
+      tone(250, t + 0.16, 0.2, 'sawtooth', 0.09);
+      break;
     case 'ping':
       tone(1500, t, 0.05, 'sine', 0.12);
       tone(1200, t + 0.25, 0.05, 'sine', 0.12);
@@ -138,12 +142,21 @@ export function play(sfx: Sfx) {
   }
 }
 
-// ---- cozy chord loop ----
+// ---- cheerful campus tune: bouncy bass, plucked chords, a sunny melody ----
+const BEAT = 0.27; // seconds per eighth note (about 110 BPM)
 const CHORDS = [
-  [261.6, 329.6, 392.0, 493.9], // Cmaj7
-  [220.0, 261.6, 329.6, 392.0], // Am7
-  [174.6, 220.0, 261.6, 329.6], // Fmaj7
-  [196.0, 246.9, 293.7, 349.2], // G7
+  [261.63, 329.63, 392.0], // C
+  [392.0, 493.88, 587.33], // G
+  [440.0, 523.25, 659.25], // Am
+  [349.23, 440.0, 523.25], // F
+];
+const BASS = [130.81, 98.0, 110.0, 87.31];
+// melody in eighth notes, four bars at a time; 0 is a rest
+const MELODIES = [
+  [659.25, 0, 783.99, 659.25, 880.0, 783.99, 659.25, 0],
+  [587.33, 0, 783.99, 587.33, 659.25, 783.99, 880.0, 783.99],
+  [880.0, 0, 1046.5, 880.0, 783.99, 659.25, 783.99, 0],
+  [698.46, 880.0, 1046.5, 880.0, 783.99, 698.46, 587.33, 0],
 ];
 
 function startMusic() {
@@ -153,14 +166,20 @@ function startMusic() {
   const playBar = () => {
     if (!ctx || ctx.state !== 'running') return;
     const t = ctx.currentTime + 0.05;
-    const chord = CHORDS[step % CHORDS.length];
-    chord.forEach((f, i) => tone(f / 2, t + i * 0.02, 3.6, 'sine', 0.35, musicGain!));
-    // a gentle arpeggio on top
-    [0, 1, 2, 3, 2, 1].forEach((n, i) => tone(chord[n], t + 0.6 * i, 0.9, 'triangle', 0.18, musicGain!));
+    const i = step % CHORDS.length;
+    for (let n = 0; n < 8; n++) {
+      const at = t + n * BEAT;
+      // oom-pah: bass on the beat, chord stabs on the off-beats
+      if (n % 2 === 0) tone(n % 4 === 0 ? BASS[i] : BASS[i] * 1.5, at, 0.3, 'triangle', 0.5, musicGain!);
+      else CHORDS[i].forEach((f) => tone(f, at, 0.2, 'triangle', 0.14, musicGain!));
+      const note = MELODIES[i][n];
+      if (note && step % 8 >= 2) tone(note, at, 0.32, 'square', 0.1, musicGain!);
+      tone(7000, at, 0.03, 'square', 0.012, musicGain!); // light shaker
+    }
     step++;
   };
   playBar();
-  musicTimer = window.setInterval(playBar, 3600);
+  musicTimer = window.setInterval(playBar, BEAT * 8 * 1000);
 }
 
 function stopMusic() {
